@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { FORMATIONS } from '@/public/lib/formations';
+import PlayerModal from '@/components/PlayerModal'; // Assicurati che il percorso dell'import sia corretto
 
 export default function Pitch({
   matchType = '7v7',
@@ -8,7 +10,14 @@ export default function Pitch({
   formationBlack = '3-2-1',
   whiteTeam = [],
   blackTeam = [],
+  stagioneId = null, // Riceve l'id della stagione per calcolare le metriche
 }) {
+  const [selectedPlayer, setSelectedPlayer] = useState<{
+    id: string,
+    nickname: string,
+    avatar_url: string,
+  } | null>(null);
+
   const getCoords = (type, formation, teamColor) => {
     const defaultCoords = [
       { x: 50, y: 8 },
@@ -41,6 +50,15 @@ export default function Pitch({
     const assist = item.assist || 0;
 
     return { id, nickname, avatar_url, gol, assist };
+  };
+
+  const handlePlayerClick = (playerData) => {
+    if (!playerData.id) return;
+    setSelectedPlayer({
+      id: playerData.id,
+      nickname: playerData.nickname,
+      avatar_url: playerData.avatar_url,
+    });
   };
 
   return (
@@ -147,7 +165,8 @@ export default function Pitch({
 
         {/* SQUADRA BIANCA (In alto) */}
         {whiteTeam.map((item, idx) => {
-          const { id, nickname, avatar_url, gol, assist } = getPlayerData(item);
+          const playerData = getPlayerData(item);
+          const { id, nickname, avatar_url, gol, assist } = playerData;
           const pos = whitePositions[idx] || { x: 50, y: 20 };
           const defaultAvatar =
             'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
@@ -155,6 +174,7 @@ export default function Pitch({
           return (
             <div
               key={`w-${id || idx}`}
+              onClick={() => handlePlayerClick(playerData)}
               style={{
                 position: 'absolute',
                 left: `${pos.x}%`,
@@ -165,6 +185,7 @@ export default function Pitch({
                 alignItems: 'center',
                 zIndex: 10,
                 transition: 'all 0.3s ease',
+                cursor: 'pointer',
               }}
             >
               {/* PEDINA RETTANGOLARE / SCUDETTO */}
@@ -272,7 +293,8 @@ export default function Pitch({
 
         {/* SQUADRA NERA (In basso) */}
         {blackTeam.map((item, idx) => {
-          const { id, nickname, avatar_url, gol, assist } = getPlayerData(item);
+          const playerData = getPlayerData(item);
+          const { id, nickname, avatar_url, gol, assist } = playerData;
           const pos = blackPositions[idx] || { x: 50, y: 80 };
           const defaultAvatar =
             'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
@@ -280,6 +302,7 @@ export default function Pitch({
           return (
             <div
               key={`b-${id || idx}`}
+              onClick={() => handlePlayerClick(playerData)}
               style={{
                 position: 'absolute',
                 left: `${pos.x}%`,
@@ -290,6 +313,7 @@ export default function Pitch({
                 alignItems: 'center',
                 zIndex: 10,
                 transition: 'all 0.3s ease',
+                cursor: 'pointer',
               }}
             >
               {/* PEDINA RETTANGOLARE / SCUDETTO */}
@@ -395,6 +419,14 @@ export default function Pitch({
           );
         })}
       </div>
+
+      {/* MODAL GIOCATORE */}
+      <PlayerModal
+        isOpen={!!selectedPlayer}
+        onClose={() => setSelectedPlayer(null)}
+        giocatore={selectedPlayer}
+        stagioneId={stagioneId}
+      />
     </div>
   );
 }
