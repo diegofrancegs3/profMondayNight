@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/public/lib/supabase';
 import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award } from 'lucide-react';
-import PlayerModal from '@/public/lib/components/PlayerModal';
+import PlayerModal from '../../public/lib/components/PlayerModal';
 
 interface StatGiocatore {
   id: string;
@@ -32,7 +32,7 @@ export default function StatistichePage() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   // Stati per PlayerModal
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<StatGiocatore | null>(null);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState<boolean>(false);
 
   // 1. Carica le stagioni disponibili dalla tabella "stagioni"
@@ -142,8 +142,8 @@ export default function StatistichePage() {
   }, [tipo, stagioneId]);
 
   // Gestione apertura scheda giocatore
-  const handleOpenPlayerModal = (playerId: string) => {
-    setSelectedPlayerId(playerId);
+  const handleOpenPlayerModal = (player: StatGiocatore) => {
+    setSelectedPlayer(player);
     setIsPlayerModalOpen(true);
   };
 
@@ -242,7 +242,7 @@ export default function StatistichePage() {
               return (
                 <div
                   key={item.id}
-                  onClick={() => handleOpenPlayerModal(item.id)}
+                  onClick={() => handleOpenPlayerModal(item)}
                   className="flex items-center justify-between py-2 px-1 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
                 >
                   {/* Posizione e Avatar e Nome */}
@@ -381,12 +381,13 @@ export default function StatistichePage() {
 
       {/* POPUP SCHEDA GIOCATORE */}
       <PlayerModal
-        playerId={selectedPlayerId}
         isOpen={isPlayerModalOpen}
         onClose={() => {
           setIsPlayerModalOpen(false);
-          setSelectedPlayerId(null);
+          setSelectedPlayer(null);
         }}
+        giocatore={selectedPlayer}
+        stagioneId={stagioneId}
       />
     </div>
   );
