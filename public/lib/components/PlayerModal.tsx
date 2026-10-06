@@ -94,13 +94,14 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
         cursor: 'pointer',
       }}
     >
-      {/* BOX POPUP FORZATO A 500x300 PX */}
+      {/* BOX POPUP ADATTABILE */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '500px',
           maxWidth: '90vw',
-          height: '300px',
+          height: 'auto',
+          maxHeight: '90vh',
           backgroundColor: '#ffffff',
           borderRadius: '16px',
           padding: '20px',
@@ -130,22 +131,27 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            zIndex: 10,
           }}
           aria-label="Chiudi"
         >
           <X size={20} />
         </button>
 
-        {/* Sinistra: Immagine Avatar */}
+        {/* Sinistra: Immagine Avatar con adattamento senza crop */}
         <div
           style={{
-            width: '200px',
-            height: '240px',
+            width: '123px',
+            height: '220px',
             flexShrink: 0,
             borderRadius: '12px',
             overflow: 'hidden',
-            border: '1px solid #e2e8f0',
+            border: '3px solid #000000',
+            backgroundColor: '#0f172a',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           <img
@@ -154,7 +160,7 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
             style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              objectFit: 'contain',
             }}
           />
         </div>
@@ -166,7 +172,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
             flexDirection: 'column',
             justifyContent: 'center',
             flexGrow: 1,
-            height: '100%',
           }}
         >
           <h3

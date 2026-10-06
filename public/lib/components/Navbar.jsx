@@ -19,7 +19,7 @@ export function Header() {
           maxWidth: '448px',
           margin: '0 auto',
           padding: '0 16px',
-          height: '48px',
+          height: '24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -47,20 +47,39 @@ export function BottomNav() {
 
   const navItems = [
     {
-      label: 'Partita',
       href: '/',
-      icon: (
-        <svg style={{ width: '20px', height: '20px' }} fill={pathname === '/' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={pathname === '/' ? '0' : '2'} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      icon: (isActive) => (
+        <svg
+          style={{ width: '24px', height: '24px' }}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={isActive ? '2.5' : '2'}
+          viewBox="0 0 24 24"
+        >
+          {/* Rettangolo Campo */}
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          {/* Linea di centrocampo */}
+          <line x1="12" y1="4" x2="12" y2="20" />
+          {/* Cerchio di centrocampo */}
+          <circle cx="12" cy="12" r="3" />
         </svg>
       ),
     },
     {
-      label: 'Classifiche',
       href: '/statistiche',
-      icon: (
-        <svg style={{ width: '20px', height: '20px' }} fill={pathname === '/statistiche' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={pathname === '/statistiche' ? '0' : '2'} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      icon: (isActive) => (
+        <svg
+          style={{ width: '24px', height: '24px' }}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={isActive ? '2.5' : '2'}
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
         </svg>
       ),
     },
@@ -71,7 +90,7 @@ export function BottomNav() {
       style={{
         backgroundColor: '#ffffff',
         borderTop: '1px solid #e2e8f0',
-        marginTop: '24px',
+        marginTop: '0px',
         width: '100%',
       }}
     >
@@ -82,7 +101,7 @@ export function BottomNav() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-around',
-          height: '56px',
+          height: '40px',
           padding: '0 16px',
         }}
       >
@@ -94,7 +113,6 @@ export function BottomNav() {
               href={item.href}
               style={{
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 textDecoration: 'none',
@@ -102,16 +120,7 @@ export function BottomNav() {
                 flex: 1,
               }}
             >
-              {item.icon}
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: isActive ? 700 : 500,
-                  marginTop: '2px',
-                }}
-              >
-                {item.label}
-              </span>
+              {item.icon(isActive)}
             </Link>
           );
         })}
