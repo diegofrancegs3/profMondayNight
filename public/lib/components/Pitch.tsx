@@ -4,21 +4,38 @@ import { useState } from 'react';
 import { FORMATIONS } from '@/public/lib/formations';
 import PlayerModal from '@/public/lib/components/PlayerModal';
 
+export interface Giocatore {
+  id: string;
+  nickname: string;
+  avatar_url: string;
+  gol?: number;
+  assist?: number;
+}
+
+interface PitchProps {
+  matchType?: string;
+  formationWhite?: string;
+  formationBlack?: string;
+  whiteTeam?: any[];
+  blackTeam?: any[];
+  stagioneId?: string | null;
+}
+
 export default function Pitch({
   matchType = '7v7',
   formationWhite = '3-2-1',
   formationBlack = '3-2-1',
   whiteTeam = [],
   blackTeam = [],
-  stagioneId = null, // Riceve l'id della stagione per calcolare le metriche
-}) {
+  stagioneId = null,
+}: PitchProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<{
-    id: string,
-    nickname: string,
-    avatar_url: string,
+    id: string;
+    nickname: string;
+    avatar_url: string;
   } | null>(null);
 
-  const getCoords = (type, formation, teamColor) => {
+  const getCoords = (type: string, formation: string, teamColor: string) => {
     const defaultCoords = [
       { x: 50, y: 8 },
       { x: 25, y: 22 },
@@ -29,7 +46,7 @@ export default function Pitch({
 
     const list = FORMATIONS[type]?.[formation] || FORMATIONS['7v7']?.['3-2-1'] || defaultCoords;
 
-    return list.map((pt) => ({
+    return list.map((pt: { x: number; y: number }) => ({
       x: pt.x,
       y: teamColor === 'white' ? pt.y : 100 - pt.y,
     }));
@@ -38,7 +55,7 @@ export default function Pitch({
   const whitePositions = getCoords(matchType, formationWhite, 'white');
   const blackPositions = getCoords(matchType, formationBlack, 'black');
 
-  const getPlayerData = (item) => {
+  const getPlayerData = (item: any) => {
     if (!item) return { id: null, nickname: 'Giocatore', avatar_url: null, gol: 0, assist: 0 };
 
     const playerObj = item.giocatori || item.giocatore || item;
@@ -52,7 +69,7 @@ export default function Pitch({
     return { id, nickname, avatar_url, gol, assist };
   };
 
-  const handlePlayerClick = (playerData) => {
+  const handlePlayerClick = (playerData: any) => {
     if (!playerData.id) return;
     setSelectedPlayer({
       id: playerData.id,
