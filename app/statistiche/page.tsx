@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/public/lib/supabase';
 import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award } from 'lucide-react';
+import PlayerModal from '@/public/lib/components/PlayerModal';
 
 interface StatGiocatore {
   id: string;
@@ -25,10 +26,14 @@ export default function StatistichePage() {
   const [stagioneNome, setStagioneNome] = useState<string>('');
   const [stagioniDisponibili, setStagioniDisponibili] = useState<Stagione[]>([]);
 
-  // Stati per dati e popup
+  // Stati per dati e popup filtro
   const [classifica, setClassifica] = useState<StatGiocatore[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+
+  // Stati per PlayerModal
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState<boolean>(false);
 
   // 1. Carica le stagioni disponibili dalla tabella "stagioni"
   useEffect(() => {
@@ -60,7 +65,7 @@ export default function StatistichePage() {
         .from('partite')
         .select('id')
         .eq('stagione_id', stagioneId)
-        .eq('stato', 'giocata'); // <--- Filtro aggiunto qui
+        .eq('stato', 'giocata');
 
       const partitaIds = partite?.map((p) => p.id) || [];
 
@@ -136,13 +141,19 @@ export default function StatistichePage() {
     loadLeaderboard();
   }, [tipo, stagioneId]);
 
-  // Gestione selezione stagione senza chiudere il modal
+  // Gestione apertura scheda giocatore
+  const handleOpenPlayerModal = (playerId: string) => {
+    setSelectedPlayerId(playerId);
+    setIsPlayerModalOpen(true);
+  };
+
+  // Gestione selezione stagione
   const handleSelectStagione = (st: Stagione) => {
     setStagioneId(st.id);
     setStagioneNome(st.nome);
   };
 
-  // Gestione selezione tipo statistica: imposta il tipo e chiude il modal
+  // Gestione selezione tipo statistica
   const handleSelectTipo = (nuovoTipo: TipoClassifica) => {
     setTipo(nuovoTipo);
     setIsModalOpen(false);
@@ -179,7 +190,7 @@ export default function StatistichePage() {
       {/* HEADER CLASSIFICA COMPATTO (CLICCABILE PER POPUP FILTRI) */}
       <div
         onClick={() => setIsModalOpen(true)}
-        className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-50 transition-colors"
+        className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-50 transition-colors"
       >
         {/* Badge Categoria */}
         <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0 flex items-center gap-1">
@@ -198,7 +209,7 @@ export default function StatistichePage() {
       </div>
 
       {/* CONTENITORE TABELLA TOP 10 */}
-      <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+      <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
         {/* Titolo Sezione */}
         <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 px-0.5">
           <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
@@ -221,7 +232,6 @@ export default function StatistichePage() {
         ) : (
           <div className="divide-y divide-slate-100">
             {classifica.map((item) => {
-              // Calcolo del rango denso: incrementa la posizione solo quando il valore cambia
               if (item.valore !== lastValue) {
                 currentRank++;
                 lastValue = item.valore;
@@ -232,7 +242,8 @@ export default function StatistichePage() {
               return (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between py-2 px-1 hover:bg-slate-50 rounded-lg transition-colors"
+                  onClick={() => handleOpenPlayerModal(item.id)}
+                  className="flex items-center justify-between py-2 px-1 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
                 >
                   {/* Posizione e Avatar e Nome */}
                   <div className="flex items-center gap-2.5">
@@ -246,12 +257,14 @@ export default function StatistichePage() {
                       )}
                     </div>
 
-                    {/* Foto Giocatore */}
-                    <img
-                      src={item.avatar_url}
-                      alt={item.nickname}
-                      className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-xs shrink-0"
-                    />
+                    {/* Foto Giocatore (Rettangolare stile pitch) */}
+                    <div className="w-8 h-10 rounded-md overflow-hidden bg-slate-100 border border-slate-200 shadow-2xs shrink-0 flex items-center justify-center">
+                      <img
+                        src={item.avatar_url}
+                        alt={item.nickname}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
 
                     {/* Nickname */}
                     <span className="text-xs font-bold text-slate-800 truncate max-w-[150px]">
@@ -354,10 +367,10 @@ export default function StatistichePage() {
                 </div>
               </div>
 
-              {/* Tasto Chiudi / Conferma Generico */}
+              {/* Tasto Chiudi */}
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="w-full py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-slate-800 transition-colors mt-2"
+                className="w-full py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-slate-800 transition-colors mt-2"
               >
                 Chiudi
               </button>
@@ -365,6 +378,16 @@ export default function StatistichePage() {
           </div>
         </div>
       )}
+
+      {/* POPUP SCHEDA GIOCATORE */}
+      <PlayerModal
+        playerId={selectedPlayerId}
+        isOpen={isPlayerModalOpen}
+        onClose={() => {
+          setIsPlayerModalOpen(false);
+          setSelectedPlayerId(null);
+        }}
+      />
     </div>
   );
 }

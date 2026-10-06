@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { FORMATIONS } from '@/public/lib/formations';
-import PlayerModal from '@/components/PlayerModal'; // Assicurati che il percorso dell'import sia corretto
+import PlayerModal from '@/public/lib/components/PlayerModal';
 
 export default function Pitch({
   matchType = '7v7',
