@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/public/lib/supabase';
 import Pitch from '@/public/lib/components/Pitch';
 import { Clock, Calendar, ChevronRight, X } from 'lucide-react';
+import { Giocatore } from '@/types';
 
 interface Giocatore {
   id: string;
