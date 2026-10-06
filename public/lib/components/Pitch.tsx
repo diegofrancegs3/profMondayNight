@@ -44,7 +44,13 @@ export default function Pitch({
       { x: 50, y: 44 },
     ];
 
-    const list = FORMATIONS[type]?.[formation] || FORMATIONS['7v7']?.['3-2-1'] || defaultCoords;
+    // Cast diretto a 'any' per bypassare i controlli di indicizzazione rigidi di TypeScript
+    const formationsMap = FORMATIONS as any;
+
+    const list =
+      formationsMap[type]?.[formation] ||
+      formationsMap['7v7']?.['3-2-1'] ||
+      defaultCoords;
 
     return list.map((pt: { x: number; y: number }) => ({
       x: pt.x,
