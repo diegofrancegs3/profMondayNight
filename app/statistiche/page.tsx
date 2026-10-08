@@ -1,8 +1,9 @@
+// app/statistiche/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/public/lib/supabase';
-import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award } from 'lucide-react';
+import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords } from 'lucide-react';
 import PlayerModal from '../../public/lib/components/PlayerModal';
 
 interface StatGiocatore {
@@ -17,7 +18,15 @@ interface Stagione {
   nome: string;
 }
 
-type TipoClassifica = 'gol' | 'assist' | 'presenze';
+interface TeamStats {
+  vittorieBianchi: number;
+  vittorieNeri: number;
+  pareggi: number;
+  totalePartite: number;
+  serie: ('B' | 'N' | 'P')[]; // 'B' = Bianchi, 'N' = Neri, 'P' = Pareggio
+}
+
+type TipoClassifica = 'gol' | 'assist' | 'presenze' | 'squadre';
 
 export default function StatistichePage() {
   // Stati per filtri
@@ -30,6 +39,15 @@ export default function StatistichePage() {
   const [classifica, setClassifica] = useState<StatGiocatore[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+
+  // Stato per Statistiche Squadre (Bianchi vs Neri)
+  const [teamStats, setTeamStats] = useState<TeamStats>({
+    vittorieBianchi: 0,
+    vittorieNeri: 0,
+    pareggi: 0,
+    totalePartite: 0,
+    serie: [],
+  });
 
   // Stati per PlayerModal
   const [selectedPlayer, setSelectedPlayer] = useState<StatGiocatore | null>(null);
@@ -53,9 +71,9 @@ export default function StatistichePage() {
     loadSeasons();
   }, []);
 
-  // 2. Carica la classifica in base a Tipo e Stagione selezionata
+  // 2. Carica i dati in base a Tipo e Stagione selezionata
   useEffect(() => {
-    async function loadLeaderboard() {
+    async function loadData() {
       if (!stagioneId) return;
 
       setLoading(true);
@@ -63,82 +81,133 @@ export default function StatistichePage() {
       // Recupera SOLO le partite giocate della stagione selezionata
       const { data: partite } = await supabase
         .from('partite')
-        .select('id')
+        .select('id, data')
         .eq('stagione_id', stagioneId)
-        .eq('stato', 'giocata');
+        .eq('stato', 'giocata')
+        .order('data', { ascending: true });
 
       const partitaIds = partite?.map((p) => p.id) || [];
 
       if (partitaIds.length === 0) {
         setClassifica([]);
+        setTeamStats({
+          vittorieBianchi: 0,
+          vittorieNeri: 0,
+          pareggi: 0,
+          totalePartite: 0,
+          serie: [],
+        });
         setLoading(false);
         return;
       }
 
-      // Recupera le convocazioni/presenze
+      // Recupera le convocazioni/presenze con i gol segnati
       const { data: matchPlayers } = await supabase
         .from('partite_giocatori')
-        .select('giocatore_id, gol, assist')
+        .select('partita_id, giocatore_id, squadra, gol, assist')
         .in('partita_id', partitaIds);
 
       if (!matchPlayers || matchPlayers.length === 0) {
         setClassifica([]);
+        setTeamStats({
+          vittorieBianchi: 0,
+          vittorieNeri: 0,
+          pareggi: 0,
+          totalePartite: 0,
+          serie: [],
+        });
         setLoading(false);
         return;
       }
 
-      // Aggrega i dati per giocatore
-      const statsMap = new Map<string, number>();
+      // --- CALCOLO STATISTICHE SQUADRE (BIANCHI vs NERI) ---
+      let vBianchi = 0;
+      let vNeri = 0;
+      let pareggi = 0;
+      const serieResult: ('B' | 'N' | 'P')[] = [];
 
-      matchPlayers.forEach((mp) => {
-        const id = mp.giocatore_id;
-        if (!id) return;
+      (partite || []).forEach((p) => {
+        const pPlayers = matchPlayers.filter((mp) => mp.partita_id === p.id);
+        const golBianchi = pPlayers
+          .filter((mp) => mp.squadra === 'bianchi')
+          .reduce((acc, curr) => acc + (curr.gol || 0), 0);
+        const golNeri = pPlayers
+          .filter((mp) => mp.squadra === 'neri')
+          .reduce((acc, curr) => acc + (curr.gol || 0), 0);
 
-        const currentVal = statsMap.get(id) || 0;
-        if (tipo === 'gol') {
-          statsMap.set(id, currentVal + (mp.gol || 0));
-        } else if (tipo === 'assist') {
-          statsMap.set(id, currentVal + (mp.assist || 0));
-        } else if (tipo === 'presenze') {
-          statsMap.set(id, currentVal + 1);
+        if (golBianchi > golNeri) {
+          vBianchi++;
+          serieResult.push('B');
+        } else if (golNeri > golBianchi) {
+          vNeri++;
+          serieResult.push('N');
+        } else {
+          pareggi++;
+          serieResult.push('P');
         }
       });
 
-      // Filtra chi ha un valore > 0 e prendi i dati anagrafici dei giocatori
-      const playerIds = Array.from(statsMap.keys()).filter(
-        (id) => (statsMap.get(id) || 0) > 0
-      );
+      setTeamStats({
+        vittorieBianchi: vBianchi,
+        vittorieNeri: vNeri,
+        pareggi: pareggi,
+        totalePartite: partite?.length || 0,
+        serie: serieResult,
+      });
 
-      if (playerIds.length === 0) {
-        setClassifica([]);
-        setLoading(false);
-        return;
+      // --- CALCOLO CLASSIFICA SINGOLI GIOCATORI ---
+      if (tipo !== 'squadre') {
+        const statsMap = new Map<string, number>();
+
+        matchPlayers.forEach((mp) => {
+          const id = mp.giocatore_id;
+          if (!id) return;
+
+          const currentVal = statsMap.get(id) || 0;
+          if (tipo === 'gol') {
+            statsMap.set(id, currentVal + (mp.gol || 0));
+          } else if (tipo === 'assist') {
+            statsMap.set(id, currentVal + (mp.assist || 0));
+          } else if (tipo === 'presenze') {
+            statsMap.set(id, currentVal + 1);
+          }
+        });
+
+        const playerIds = Array.from(statsMap.keys()).filter(
+          (id) => (statsMap.get(id) || 0) > 0
+        );
+
+        if (playerIds.length === 0) {
+          setClassifica([]);
+          setLoading(false);
+          return;
+        }
+
+        const { data: playersData } = await supabase
+          .from('giocatori')
+          .select('id, nickname, avatar_url')
+          .in('id', playerIds);
+
+        const defaultAvatar =
+          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
+
+        const list: StatGiocatore[] = (playersData || [])
+          .map((p) => ({
+            id: p.id,
+            nickname: p.nickname || 'Giocatore',
+            avatar_url: p.avatar_url || defaultAvatar,
+            valore: statsMap.get(p.id) || 0,
+          }))
+          .sort((a, b) => b.valore - a.valore)
+          .slice(0, 10);
+
+        setClassifica(list);
       }
 
-      const { data: playersData } = await supabase
-        .from('giocatori')
-        .select('id, nickname, avatar_url')
-        .in('id', playerIds);
-
-      const defaultAvatar =
-        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
-
-      // Costruisci e ordina la classifica (Top 10)
-      const list: StatGiocatore[] = (playersData || [])
-        .map((p) => ({
-          id: p.id,
-          nickname: p.nickname || 'Giocatore',
-          avatar_url: p.avatar_url || defaultAvatar,
-          valore: statsMap.get(p.id) || 0,
-        }))
-        .sort((a, b) => b.valore - a.valore)
-        .slice(0, 10);
-
-      setClassifica(list);
       setLoading(false);
     }
 
-    loadLeaderboard();
+    loadData();
   }, [tipo, stagioneId]);
 
   // Gestione apertura scheda giocatore
@@ -167,6 +236,8 @@ export default function StatistichePage() {
         return 'Classifica Assist 👟';
       case 'presenze':
         return 'Classifica Presenze 🏃';
+      case 'squadre':
+        return 'Sfida Squadre ⚔️';
     }
   };
 
@@ -178,12 +249,20 @@ export default function StatistichePage() {
         return 'ASSIST';
       case 'presenze':
         return 'PRESENZE';
+      case 'squadre':
+        return 'SQUADRE';
     }
   };
 
-  // Calcolo dinamico della posizione sequenziale per pari merito (Dense Ranking)
   let currentRank = 0;
   let lastValue: number | null = null;
+
+  const pctBianchi = teamStats.totalePartite
+    ? Math.round((teamStats.vittorieBianchi / teamStats.totalePartite) * 100)
+    : 0;
+  const pctNeri = teamStats.totalePartite
+    ? Math.round((teamStats.vittorieNeri / teamStats.totalePartite) * 100)
+    : 0;
 
   return (
     <div className="space-y-1.5">
@@ -208,82 +287,186 @@ export default function StatistichePage() {
         </div>
       </div>
 
-      {/* CONTENITORE TABELLA TOP 10 */}
-      <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
-        {/* Titolo Sezione */}
-        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 px-0.5">
-          <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
-            {getTitle()}
-          </span>
-          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-            Top 10
-          </span>
-        </div>
-
-        {/* LISTA GIOCATORI */}
-        {loading ? (
-          <div className="py-12 text-center text-xs text-slate-400 font-medium">
-            Caricamento classifica...
+      {/* VISTA 1: SCHEDA SFIDA SQUADRE (SELEZIONATA DAL FILTRO) */}
+      {tipo === 'squadre' ? (
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+            <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
+              <Swords size={16} className="text-slate-700" />
+              <span>Bianchi vs Neri</span>
+            </span>
+            <span className="text-xs font-bold text-slate-400">
+              {teamStats.totalePartite} Partit{teamStats.totalePartite === 1 ? 'a' : 'e'}
+            </span>
           </div>
-        ) : classifica.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-400 font-medium">
-            Nessun dato registrato per questa stagione.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {classifica.map((item) => {
-              if (item.valore !== lastValue) {
-                currentRank++;
-                lastValue = item.valore;
-              }
 
-              const rank = currentRank;
+          {loading ? (
+            <div className="py-12 text-center text-xs text-slate-400 font-medium">
+              Caricamento statistiche squadre...
+            </div>
+          ) : teamStats.totalePartite === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-400 font-medium">
+              Nessuna partita giocata in questa stagione.
+            </div>
+          ) : (
+            <>
+              {/* Punteggi Bianchi vs Neri */}
+              <div className="grid grid-cols-3 items-center text-center py-2 bg-slate-50 rounded-xl border border-slate-100">
+                {/* Bianchi */}
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-extrabold text-slate-700 uppercase">Bianchi</span>
+                  <span className="text-2xl font-black text-slate-900">{teamStats.vittorieBianchi}</span>
+                  <span className="text-[10px] font-semibold text-slate-400">{pctBianchi}% Vint.</span>
+                </div>
 
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => handleOpenPlayerModal(item)}
-                  className="flex items-center justify-between py-2 px-1 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
-                >
-                  {/* Posizione e Avatar e Nome */}
-                  <div className="flex items-center gap-2.5">
-                    {/* Posizione / Medaglia con pari merito */}
-                    <div className="w-6 text-center text-xs font-extrabold shrink-0">
-                      {rank === 1 && <span className="text-base">🥇</span>}
-                      {rank === 2 && <span className="text-base">🥈</span>}
-                      {rank === 3 && <span className="text-base">🥉</span>}
-                      {rank > 3 && (
-                        <span className="text-slate-400 font-bold">{rank}</span>
-                      )}
-                    </div>
+                {/* Pareggi */}
+                <div className="flex flex-col items-center border-x border-slate-200 px-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Pareggi</span>
+                  <span className="text-lg font-bold text-slate-600">{teamStats.pareggi}</span>
+                </div>
 
-                    {/* Foto Giocatore (Rettangolare stile pitch) */}
-                    <div className="w-8 h-10 rounded-md overflow-hidden bg-slate-100 border border-slate-200 shadow-2xs shrink-0 flex items-center justify-center">
-                      <img
-                        src={item.avatar_url}
-                        alt={item.nickname}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                {/* Neri */}
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-extrabold text-slate-900 uppercase">Neri</span>
+                  <span className="text-2xl font-black text-slate-900">{teamStats.vittorieNeri}</span>
+                  <span className="text-[10px] font-semibold text-slate-400">{pctNeri}% Vint.</span>
+                </div>
+              </div>
 
-                    {/* Nickname */}
-                    <span className="text-xs font-bold text-slate-800 truncate max-w-[150px]">
-                      {item.nickname}
-                    </span>
-                  </div>
+              {/* Barra di confronto visiva */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Distribuzione Vittorie</span>
+                <div className="w-full h-3 rounded-full overflow-hidden flex bg-slate-100 border border-slate-200">
+                  <div
+                    style={{ width: `${(teamStats.vittorieBianchi / teamStats.totalePartite) * 100}%` }}
+                    className="bg-slate-300"
+                    title="Vittorie Bianchi"
+                  />
+                  <div
+                    style={{ width: `${(teamStats.pareggi / teamStats.totalePartite) * 100}%` }}
+                    className="bg-slate-400"
+                    title="Pareggi"
+                  />
+                  <div
+                    style={{ width: `${(teamStats.vittorieNeri / teamStats.totalePartite) * 100}%` }}
+                    className="bg-slate-900"
+                    title="Vittorie Neri"
+                  />
+                </div>
+              </div>
 
-                  {/* Valore Statistica */}
-                  <div className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-                    <span className="text-xs font-black text-slate-900">
-                      {item.valore}
-                    </span>
+              {/* Serie Storica Risultati */}
+              {teamStats.serie.length > 0 && (
+                <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                    Serie Risultati (Cronologica):
+                  </span>
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                    {teamStats.serie.map((res, idx) => (
+                      <span
+                        key={idx}
+                        className={`w-6 h-6 rounded-full text-xs font-black flex items-center justify-center shrink-0 shadow-2xs ${
+                          res === 'B'
+                            ? 'bg-slate-200 text-slate-800 border border-slate-300'
+                            : res === 'N'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        }`}
+                        title={
+                          res === 'B'
+                            ? 'Vittoria Bianchi'
+                            : res === 'N'
+                            ? 'Vittoria Neri'
+                            : 'Pareggio'
+                        }
+                      >
+                        {res}
+                      </span>
+                    ))}
                   </div>
                 </div>
-              );
-            })}
+              )}
+            </>
+          )}
+        </div>
+      ) : (
+        /* VISTA 2: CONTENITORE TABELLA TOP 10 (GOL, ASSIST, PRESENZE) */
+        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
+          {/* Titolo Sezione */}
+          <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 px-0.5">
+            <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
+              {getTitle()}
+            </span>
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+              Top 10
+            </span>
           </div>
-        )}
-      </div>
+
+          {/* LISTA GIOCATORI */}
+          {loading ? (
+            <div className="py-12 text-center text-xs text-slate-400 font-medium">
+              Caricamento classifica...
+            </div>
+          ) : classifica.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-400 font-medium">
+              Nessun dato registrato per questa stagione.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {classifica.map((item) => {
+                if (item.valore !== lastValue) {
+                  currentRank++;
+                  lastValue = item.valore;
+                }
+
+                const rank = currentRank;
+
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => handleOpenPlayerModal(item)}
+                    className="flex items-center justify-between py-2 px-1 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    {/* Posizione e Avatar e Nome */}
+                    <div className="flex items-center gap-2.5">
+                      {/* Posizione / Medaglia con pari merito */}
+                      <div className="w-6 text-center text-xs font-extrabold shrink-0">
+                        {rank === 1 && <span className="text-base">🥇</span>}
+                        {rank === 2 && <span className="text-base">🥈</span>}
+                        {rank === 3 && <span className="text-base">🥉</span>}
+                        {rank > 3 && (
+                          <span className="text-slate-400 font-bold">{rank}</span>
+                        )}
+                      </div>
+
+                      {/* Foto Giocatore */}
+                      <div className="w-8 h-10 rounded-md overflow-hidden bg-slate-100 border border-slate-200 shadow-2xs shrink-0 flex items-center justify-center">
+                        <img
+                          src={item.avatar_url}
+                          alt={item.nickname}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+
+                      {/* Nickname */}
+                      <span className="text-xs font-bold text-slate-800 truncate max-w-[150px]">
+                        {item.nickname}
+                      </span>
+                    </div>
+
+                    {/* Valore Statistica */}
+                    <div className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                      <span className="text-xs font-black text-slate-900">
+                        {item.valore}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* POPUP / MODAL SELEZIONE CLASSIFICA E STAGIONE */}
       {isModalOpen && (
@@ -291,7 +474,7 @@ export default function StatistichePage() {
           <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl flex flex-col shadow-xl overflow-hidden">
             {/* Header Modal */}
             <div className="p-3.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-slate-800 text-sm">Filtra Classifica</h3>
+              <h3 className="font-bold text-slate-800 text-sm">Filtra Statistiche</h3>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
@@ -306,10 +489,10 @@ export default function StatistichePage() {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Tipo di Statistica
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleSelectTipo('gol')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                       tipo === 'gol'
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -321,7 +504,7 @@ export default function StatistichePage() {
 
                   <button
                     onClick={() => handleSelectTipo('assist')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                       tipo === 'assist'
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -333,7 +516,7 @@ export default function StatistichePage() {
 
                   <button
                     onClick={() => handleSelectTipo('presenze')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                       tipo === 'presenze'
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -341,6 +524,18 @@ export default function StatistichePage() {
                   >
                     <Footprints size={16} />
                     Presenze
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectTipo('squadre')}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      tipo === 'squadre'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Swords size={16} />
+                    Sfida Squadre
                   </button>
                 </div>
               </div>

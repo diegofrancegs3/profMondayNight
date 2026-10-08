@@ -41,13 +41,6 @@ export default function HomePage() {
   const [matchesList, setMatchesList] = useState<Partita[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(false);
 
-  // Helper per ricavare il numero massimo di giocatori per squadra in base alla tipologia (es. "7v7" -> 7)
-  const getMaxPlayersPerTeam = (tipologia?: string): number => {
-    if (!tipologia) return 99; // Se non specificata, non limita
-    const matchType = tipologia.match(/(\d+)/);
-    return matchType ? parseInt(matchType[1], 10) : 99;
-  };
-
   // 1. Carica la partita selezionata o la più recente/prossima
   useEffect(() => {
     async function loadMatchData() {
@@ -94,14 +87,11 @@ export default function HomePage() {
       setMatch(currentMatch);
 
       if (currentMatch) {
-        const maxPlayers = getMaxPlayersPerTeam(currentMatch.tipologia);
-
-        // Estraiamo solo i giocatori con posizione da 1 a maxPlayers per squadra
+        // Recuperiamo tutti i giocatori associati alla partita (compresi quelli in panchina)
         const { data: matchPlayers } = await supabase
           .from('partite_giocatori')
           .select('squadra, posizione, giocatore_id, gol, assist')
           .eq('partita_id', currentMatch.id)
-          .lte('posizione', maxPlayers)
           .order('posizione', { ascending: true });
 
         const playerIds = matchPlayers?.map((mp) => mp.giocatore_id) || [];

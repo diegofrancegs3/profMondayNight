@@ -1,3 +1,4 @@
+// @/public/lib/components/Pitch.tsx
 'use client';
 
 import { useState } from 'react';
@@ -35,7 +36,22 @@ export default function Pitch({
     avatar_url: string;
   } | null>(null);
 
-  const getCoords = (type: string, formation: string, teamColor: string) => {
+  // Determina quanti giocatori vanno in campo in base alla tipologia (es. '7v7' -> 7)
+  const getMaxFieldPlayers = (type: string): number => {
+    const parsed = parseInt(type.split('v')[0], 10);
+    return isNaN(parsed) ? 7 : parsed;
+  };
+
+  const maxPlayersInField = getMaxFieldPlayers(matchType);
+
+  // Calcola le coordinate sia per chi è in campo sia per i panchinari a bordo campo
+  const getPlayerPosition = (
+    index: number,
+    type: string,
+    formation: string,
+    teamColor: 'white' | 'black'
+  ) => {
+    const formationsMap = FORMATIONS as any;
     const defaultCoords = [
       { x: 50, y: 8 },
       { x: 25, y: 22 },
@@ -44,22 +60,38 @@ export default function Pitch({
       { x: 50, y: 44 },
     ];
 
-    // Cast diretto a 'any' per bypassare i controlli di indicizzazione rigidi di TypeScript
-    const formationsMap = FORMATIONS as any;
-
-    const list =
+    const coordsList =
       formationsMap[type]?.[formation] ||
       formationsMap['7v7']?.['3-2-1'] ||
       defaultCoords;
 
-    return list.map((pt: { x: number; y: number }) => ({
-      x: pt.x,
-      y: teamColor === 'white' ? pt.y : 100 - pt.y,
-    }));
-  };
+    // 1. GIOCATORE IN CAMPO (Indice entro il limite della formazione)
+    if (index < maxPlayersInField) {
+      const pt = coordsList[index] || { x: 50, y: 50 };
+      return {
+        x: pt.x,
+        y: teamColor === 'white' ? pt.y : 100 - pt.y,
+      };
+    }
 
-  const whitePositions = getCoords(matchType, formationWhite, 'white');
-  const blackPositions = getCoords(matchType, formationBlack, 'black');
+    // 2. GIOCATORE IN PANCHINA (Oltre il limite della formazione)
+    const benchIndex = index - maxPlayersInField; // 0 per l'8° giocatore, 1 per il 9°, ecc.
+    const clampedBenchIndex = Math.min(benchIndex, 4); // Max 5 riserve (indici 0..4)
+
+    if (teamColor === 'white') {
+      // Bianchi: bordo sinistro (x=2%), dall'alto verso il basso (y da 8% a 40%)
+      return {
+        x: 0,
+        y: 8 + clampedBenchIndex * 12,
+      };
+    } else {
+      // Neri: bordo destro (x=98%), dal basso verso l'alto (y da 92% a 60%)
+      return {
+        x: 100,
+        y: 92 - clampedBenchIndex * 12,
+      };
+    }
+  };
 
   const getPlayerData = (item: any) => {
     if (!item) return { id: null, nickname: 'Giocatore', avatar_url: null, gol: 0, assist: 0 };
@@ -186,11 +218,12 @@ export default function Pitch({
           />
         </div>
 
-        {/* SQUADRA BIANCA (In alto) */}
+        {/* SQUADRA BIANCA (In alto e a sinistra) */}
         {whiteTeam.map((item, idx) => {
           const playerData = getPlayerData(item);
           const { id, nickname, avatar_url, gol, assist } = playerData;
-          const pos = whitePositions[idx] || { x: 50, y: 20 };
+          const pos = getPlayerPosition(idx, matchType, formationWhite, 'white');
+          const isBench = idx >= maxPlayersInField;
           const defaultAvatar =
             'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
 
@@ -202,11 +235,11 @@ export default function Pitch({
                 position: 'absolute',
                 left: `${pos.x}%`,
                 top: `${pos.y}%`,
-                transform: 'translate(-50%, -50%)',
+                transform: isBench ? 'translate(0%, -50%)' : 'translate(-50%, -50%)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                zIndex: 10,
+                zIndex: isBench ? 15 : 10,
                 transition: 'all 0.3s ease',
                 cursor: 'pointer',
               }}
@@ -215,8 +248,8 @@ export default function Pitch({
               <div
                 style={{
                   position: 'relative',
-                  width: '40px',
-                  height: '54px',
+                  width: isBench ? '40px' : '40px',
+                  height: isBench ? '54px' : '54px',
                   borderRadius: '6px',
                   border: '2px solid #ffffff',
                   backgroundColor: '#ffffff',
@@ -256,7 +289,7 @@ export default function Pitch({
                           backgroundColor: '#10b981',
                           color: '#ffffff',
                           padding: '1px 3px',
-                          fontSize: '10px',
+                          fontSize: '9px',
                           fontWeight: 'bold',
                           borderRadius: '3px',
                           boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
@@ -275,7 +308,7 @@ export default function Pitch({
                           backgroundColor: '#3b82f6',
                           color: '#ffffff',
                           padding: '1px 3px',
-                          fontSize: '10px',
+                          fontSize: '9px',
                           fontWeight: 'bold',
                           borderRadius: '3px',
                           boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
@@ -296,8 +329,8 @@ export default function Pitch({
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '0px' }}>
                 <span
                   style={{
-                    padding: '0px 4px',
-                    fontSize: '8px',
+                    padding: '0px 3px',
+                    fontSize: isBench ? '8px' : '8px',
                     fontWeight: 'bold',
                     backgroundColor: '#ffffff',
                     color: '#0f172a',
@@ -314,11 +347,12 @@ export default function Pitch({
           );
         })}
 
-        {/* SQUADRA NERA (In basso) */}
+        {/* SQUADRA NERA (In basso e a destra) */}
         {blackTeam.map((item, idx) => {
           const playerData = getPlayerData(item);
           const { id, nickname, avatar_url, gol, assist } = playerData;
-          const pos = blackPositions[idx] || { x: 50, y: 80 };
+          const pos = getPlayerPosition(idx, matchType, formationBlack, 'black');
+          const isBench = idx >= maxPlayersInField;
           const defaultAvatar =
             'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
 
@@ -330,11 +364,11 @@ export default function Pitch({
                 position: 'absolute',
                 left: `${pos.x}%`,
                 top: `${pos.y}%`,
-                transform: 'translate(-50%, -50%)',
+                transform: isBench ? 'translate(-100%, -50%)' : 'translate(-50%, -50%)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                zIndex: 10,
+                zIndex: isBench ? 15 : 10,
                 transition: 'all 0.3s ease',
                 cursor: 'pointer',
               }}
@@ -343,8 +377,8 @@ export default function Pitch({
               <div
                 style={{
                   position: 'relative',
-                  width: '40px',
-                  height: '54px',
+                  width: isBench ? '40px' : '40px',
+                  height: isBench ? '54px' : '54px',
                   borderRadius: '6px',
                   border: '2px solid #0f172a',
                   backgroundColor: '#0f172a',
@@ -371,7 +405,7 @@ export default function Pitch({
                     style={{
                       position: 'absolute',
                       top: '-4px',
-                      right: '-15px',
+                      right: '-12px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '2px',
@@ -384,7 +418,7 @@ export default function Pitch({
                           backgroundColor: '#10b981',
                           color: '#ffffff',
                           padding: '1px 3px',
-                          fontSize: '10px',
+                          fontSize: '9px',
                           fontWeight: 'bold',
                           borderRadius: '3px',
                           boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
@@ -403,7 +437,7 @@ export default function Pitch({
                           backgroundColor: '#3b82f6',
                           color: '#ffffff',
                           padding: '1px 3px',
-                          fontSize: '10px',
+                          fontSize: '9px',
                           fontWeight: 'bold',
                           borderRadius: '3px',
                           boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
@@ -424,8 +458,8 @@ export default function Pitch({
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '0px' }}>
                 <span
                   style={{
-                    padding: '0px 4px',
-                    fontSize: '8px',
+                    padding: '0px 3px',
+                    fontSize: isBench ? '8px' : '8px',
                     fontWeight: 'bold',
                     backgroundColor: '#0f172a',
                     color: '#ffffff',

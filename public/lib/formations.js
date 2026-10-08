@@ -1,18 +1,19 @@
+// @/public/lib/formations.js
 export const FORMATIONS = {
   '5v5': {
     '1-2-1': [
-      { x: 50, y: 8 },   // Portiere / Ultimo
-      { x: 50, y: 22 },  // Difensore
-      { x: 25, y: 30 },  // Esterno Sinistro
-      { x: 75, y: 30 },  // Esterno Destro
-      { x: 50, y: 42 },  // Attaccante
+      { x: 50, y: 8 },
+      { x: 50, y: 22 },
+      { x: 25, y: 30 },
+      { x: 75, y: 30 },
+      { x: 50, y: 42 },
     ],
     '2-2': [
-      { x: 50, y: 8 },   // Portiere
-      { x: 30, y: 22 },  // Difensore Sinistro
-      { x: 70, y: 22 },  // Difensore Destro
-      { x: 35, y: 40 },  // Attaccante Sinistro
-      { x: 65, y: 40 },  // Attaccante Destro
+      { x: 50, y: 8 },
+      { x: 30, y: 22 },
+      { x: 70, y: 22 },
+      { x: 35, y: 40 },
+      { x: 65, y: 40 },
     ],
   },
   '7v7': {
@@ -65,5 +66,27 @@ export const FORMATIONS = {
       { x: 35, y: 44 },
       { x: 65, y: 44 },
     ],
+    '2-3-2': [
+      { x: 50, y: 6 },
+      { x: 35, y: 19 },
+      { x: 65, y: 19 },
+      { x: 20, y: 32 },
+      { x: 50, y: 32 },
+      { x: 80, y: 32 },
+      { x: 35, y: 44 },
+      { x: 65, y: 44 },
+    ],
   },
+};
+
+// Helper per ottenere le formazioni disponibili in base al tipo di match
+export const getFormationsForType = (matchType = '7v7') => {
+  const matchFormations = FORMATIONS[matchType] || FORMATIONS['7v7'];
+  return Object.keys(matchFormations);
+};
+
+// Helper per ottenere la formazione di default per un tipo di match
+export const getDefaultFormationForType = (matchType = '7v7') => {
+  const options = getFormationsForType(matchType);
+  return options[0] || '3-2-1';
 };
