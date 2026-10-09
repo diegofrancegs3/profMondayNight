@@ -196,16 +196,26 @@ export default function StatistichePage() {
           .select('id, nickname, avatar_url, avatar_url_w, avatar_url_b')
           .in('id', playerIds);
 
-        const defaultAvatar =
-          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
+        // Fallback locale salvato nella cartella public/avatars/
+        const defaultAvatar = '/avatars/default.jpg';
 
         const list: StatGiocatore[] = (playersData || [])
-          .map((p) => ({
-            id: p.id,
-            nickname: p.nickname || 'Giocatore',
-            avatar_url: p.avatar_url || defaultAvatar,
-            valore: statsMap.get(p.id) || 0,
-          }))
+          .map((p) => {
+            // Seleziona l'avatar in base al filtro squadra selezionato
+            let avatarPath = p.avatar_url;
+            if (filtroSquadra === 'bianchi' && p.avatar_url_w) {
+              avatarPath = p.avatar_url_w;
+            } else if (filtroSquadra === 'neri' && p.avatar_url_b) {
+              avatarPath = p.avatar_url_b;
+            }
+
+            return {
+              id: p.id,
+              nickname: p.nickname || 'Giocatore',
+              avatar_url: avatarPath || defaultAvatar,
+              valore: statsMap.get(p.id) || 0,
+            };
+          })
           .sort((a, b) => b.valore - a.valore)
           .slice(0, 10);
 
@@ -296,18 +306,16 @@ export default function StatistichePage() {
 
   return (
     <div className="space-y-1.5">
-      {/* HEADER CLASSIFICA COMPATTO (CLICCABILE PER POPUP FILTRI) */}
+      {/* HEADER CLASSIFICA COMPATTO */}
       <div
         onClick={() => setIsModalOpen(true)}
         className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-50 transition-colors"
       >
-        {/* Badge Categoria */}
         <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0 flex items-center gap-1">
           <Trophy size={11} />
           {getLabelBadge()}
         </span>
 
-        {/* Info Stagione e Categoria */}
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
           <span className="flex items-center gap-1">
             <Calendar size={13} className="text-slate-400" />
@@ -317,7 +325,7 @@ export default function StatistichePage() {
         </div>
       </div>
 
-      {/* VISTA 1: SCHEDA SFIDA SQUADRE (SELEZIONATA DAL FILTRO) */}
+      {/* VISTA 1: SCHEDA SFIDA SQUADRE */}
       {tipo === 'squadre' ? (
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
@@ -340,22 +348,18 @@ export default function StatistichePage() {
             </div>
           ) : (
             <>
-              {/* Punteggi Bianchi vs Neri */}
               <div className="grid grid-cols-3 items-center text-center py-2 bg-slate-50 rounded-xl border border-slate-100">
-                {/* Bianchi */}
                 <div className="flex flex-col items-center">
                   <span className="text-xs font-extrabold text-slate-700 uppercase">Bianchi</span>
                   <span className="text-2xl font-black text-slate-900">{teamStats.vittorieBianchi}</span>
                   <span className="text-[10px] font-semibold text-slate-400">{pctBianchi}% Vint.</span>
                 </div>
 
-                {/* Pareggi */}
                 <div className="flex flex-col items-center border-x border-slate-200 px-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Pareggi</span>
                   <span className="text-lg font-bold text-slate-600">{teamStats.pareggi}</span>
                 </div>
 
-                {/* Neri */}
                 <div className="flex flex-col items-center">
                   <span className="text-xs font-extrabold text-slate-900 uppercase">Neri</span>
                   <span className="text-2xl font-black text-slate-900">{teamStats.vittorieNeri}</span>
@@ -363,7 +367,6 @@ export default function StatistichePage() {
                 </div>
               </div>
 
-              {/* Barra di confronto visiva */}
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Distribuzione Vittorie</span>
                 <div className="w-full h-3 rounded-full overflow-hidden flex bg-slate-100 border border-slate-200">
@@ -385,7 +388,6 @@ export default function StatistichePage() {
                 </div>
               </div>
 
-              {/* Serie Storica Risultati */}
               {teamStats.serie.length > 0 && (
                 <div className="pt-2 border-t border-slate-100 space-y-1.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase block">
@@ -420,15 +422,13 @@ export default function StatistichePage() {
           )}
         </div>
       ) : (
-        /* VISTA 2: CONTENITORE TABELLA TOP 10 (GOL, ASSIST, PRESENZE) */
+        /* VISTA 2: TABELLA TOP 10 */
         <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
-          {/* Titolo Sezione + Pulsante Selettore Filtro Squadra */}
           <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 px-0.5">
             <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
               {getTitle()}
             </span>
 
-            {/* Tasto Selettore Squadra */}
             <button
               onClick={handleToggleFiltroSquadra}
               className={`px-2 py-0.5 rounded-full border text-[10px] font-bold flex items-center gap-1 transition-all shadow-2xs ${filtroInfo.bg}`}
@@ -439,7 +439,6 @@ export default function StatistichePage() {
             </button>
           </div>
 
-          {/* LISTA GIOCATORI */}
           {loading ? (
             <div className="py-12 text-center text-xs text-slate-400 font-medium">
               Caricamento classifica...
@@ -464,9 +463,7 @@ export default function StatistichePage() {
                     onClick={() => handleOpenPlayerModal(item)}
                     className="flex items-center justify-between py-2 px-1 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
                   >
-                    {/* Posizione e Avatar e Nome */}
                     <div className="flex items-center gap-2.5">
-                      {/* Posizione / Medaglia con pari merito */}
                       <div className="w-6 text-center text-xs font-extrabold shrink-0">
                         {rank === 1 && <span className="text-base">🥇</span>}
                         {rank === 2 && <span className="text-base">🥈</span>}
@@ -476,7 +473,6 @@ export default function StatistichePage() {
                         )}
                       </div>
 
-                      {/* Foto Giocatore */}
                       <div className="w-8 h-10 rounded-md overflow-hidden bg-slate-100 border border-slate-200 shadow-2xs shrink-0 flex items-center justify-center">
                         <img
                           src={item.avatar_url}
@@ -485,13 +481,11 @@ export default function StatistichePage() {
                         />
                       </div>
 
-                      {/* Nickname */}
                       <span className="text-xs font-bold text-slate-800 truncate max-w-[150px]">
                         {item.nickname}
                       </span>
                     </div>
 
-                    {/* Valore Statistica */}
                     <div className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
                       <span className="text-xs font-black text-slate-900">
                         {item.valore}
@@ -505,11 +499,10 @@ export default function StatistichePage() {
         </div>
       )}
 
-      {/* POPUP / MODAL SELEZIONE CLASSIFICA E STAGIONE */}
+      {/* POPUP SELEZIONE CLASSIFICA E STAGIONE */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl flex flex-col shadow-xl overflow-hidden">
-            {/* Header Modal */}
             <div className="p-3.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h3 className="font-bold text-slate-800 text-sm">Filtra Statistiche</h3>
               <button
@@ -521,7 +514,6 @@ export default function StatistichePage() {
             </div>
 
             <div className="p-4 space-y-4">
-              {/* Scelta Categoria */}
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Tipo di Statistica
@@ -577,7 +569,6 @@ export default function StatistichePage() {
                 </div>
               </div>
 
-              {/* Scelta Stagione */}
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Stagione
@@ -599,7 +590,6 @@ export default function StatistichePage() {
                 </div>
               </div>
 
-              {/* Tasto Chiudi */}
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="w-full py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-slate-800 transition-colors mt-2"

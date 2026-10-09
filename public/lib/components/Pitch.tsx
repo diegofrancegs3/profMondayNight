@@ -38,6 +38,8 @@ export default function Pitch({
     avatar_url: string;
   } | null>(null);
 
+  const defaultAvatar = '/avatars/default.jpg';
+
   // Determina quanti giocatori vanno in campo in base alla tipologia (es. '7v7' -> 7)
   const getMaxFieldPlayers = (type: string): number => {
     const parsed = parseInt(type.split('v')[0], 10);
@@ -97,7 +99,7 @@ export default function Pitch({
 
   // Estrae i dati del giocatore selezionando avatar_url_w per i Bianchi e avatar_url_b per i Neri
   const getPlayerData = (item: any, teamColor: 'white' | 'black') => {
-    if (!item) return { id: null, nickname: 'Giocatore', avatar_url: null, gol: 0, assist: 0 };
+    if (!item) return { id: null, nickname: 'Giocatore', avatar_url: defaultAvatar, gol: 0, assist: 0 };
 
     const playerObj = item.giocatori || item.giocatore || item;
 
@@ -110,7 +112,7 @@ export default function Pitch({
         ? playerObj.avatar_url_w || item.avatar_url_w
         : playerObj.avatar_url_b || item.avatar_url_b;
 
-    const avatar_url = specificAvatar || playerObj.avatar_url || item.avatar_url || null;
+    const avatar_url = specificAvatar || playerObj.avatar_url || item.avatar_url || defaultAvatar;
     const gol = item.gol || 0;
     const assist = item.assist || 0;
 
@@ -234,8 +236,6 @@ export default function Pitch({
           const { id, nickname, avatar_url, gol, assist } = playerData;
           const pos = getPlayerPosition(idx, matchType, formationWhite, 'white');
           const isBench = idx >= maxPlayersInField;
-          const defaultAvatar =
-            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
 
           return (
             <div
@@ -270,8 +270,11 @@ export default function Pitch({
                 }}
               >
                 <img
-                  src={avatar_url || defaultAvatar}
+                  src={avatar_url}
                   alt={nickname}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = defaultAvatar;
+                  }}
                   style={{
                     width: '100%',
                     height: '100%',
@@ -363,8 +366,6 @@ export default function Pitch({
           const { id, nickname, avatar_url, gol, assist } = playerData;
           const pos = getPlayerPosition(idx, matchType, formationBlack, 'black');
           const isBench = idx >= maxPlayersInField;
-          const defaultAvatar =
-            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
 
           return (
             <div
@@ -399,8 +400,11 @@ export default function Pitch({
                 }}
               >
                 <img
-                  src={avatar_url || defaultAvatar}
+                  src={avatar_url}
                   alt={nickname}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = defaultAvatar;
+                  }}
                   style={{
                     width: '100%',
                     height: '100%',

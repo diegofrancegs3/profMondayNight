@@ -12,6 +12,8 @@ interface PlayerModalProps {
     id: string;
     nickname: string;
     avatar_url: string;
+    avatar_url_w?: string;
+    avatar_url_b?: string;
   } | null;
   stagioneId?: string | null;
 }
@@ -91,8 +93,19 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
 
   if (!isOpen || !giocatore) return null;
 
-  const defaultAvatar =
-    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
+  // Fallback locale salvato nella cartella public/avatars/
+  const defaultAvatar = '/avatars/default.jpg';
+
+  // Seleziona l'immagine avatar locale corretta in base al filtro selezionato
+  const getAvatarPath = () => {
+    if (filtroSquadra === 'bianchi' && giocatore.avatar_url_w) {
+      return giocatore.avatar_url_w;
+    }
+    if (filtroSquadra === 'neri' && giocatore.avatar_url_b) {
+      return giocatore.avatar_url_b;
+    }
+    return giocatore.avatar_url || defaultAvatar;
+  };
 
   // Configurazione visiva del tasto selettore
   const getFiltroBadgeStyle = () => {
@@ -124,7 +137,7 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
   const filtroStyle = getFiltroBadgeStyle();
 
   return (
-    /* OVERLAY SFONDO (Trasparente scuro, copre lo schermo) */
+    /* OVERLAY SFONDO */
     <div
       onClick={onClose}
       style={{
@@ -142,7 +155,7 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
         cursor: 'pointer',
       }}
     >
-      {/* BOX POPUP ADATTABILE */}
+      {/* BOX POPUP */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -163,7 +176,7 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
           cursor: 'default',
         }}
       >
-        {/* Pulsante Chiudi in alto a destra */}
+        {/* Pulsante Chiudi */}
         <button
           onClick={onClose}
           style={{
@@ -186,7 +199,7 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
           <X size={20} />
         </button>
 
-        {/* Sinistra: Immagine Avatar con adattamento senza crop */}
+        {/* Sinistra: Immagine Avatar Locale */}
         <div
           style={{
             width: '123px',
@@ -203,7 +216,7 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
           }}
         >
           <img
-            src={giocatore.avatar_url || defaultAvatar}
+            src={getAvatarPath()}
             alt={giocatore.nickname}
             style={{
               width: '100%',
@@ -245,7 +258,7 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
             {stagioneId ? 'Statistiche Stagione' : 'Statistiche Totali'}
           </p>
 
-          {/* TASTO SELETTORE SQUADRA (Tutto / Bianchi / Neri) */}
+          {/* TASTO SELETTORE SQUADRA */}
           <button
             onClick={handleToggleFiltro}
             style={{

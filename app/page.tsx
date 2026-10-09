@@ -1,3 +1,4 @@
+// app/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -42,6 +43,9 @@ export default function HomePage() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [matchesList, setMatchesList] = useState<Partita[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(false);
+
+  // Fallback locale per l'avatar
+  const defaultAvatar = '/avatars/default.jpg';
 
   // 1. Carica la partita selezionata o la più recente/prossima
   useEffect(() => {
@@ -112,6 +116,7 @@ export default function HomePage() {
           if (!base) return undefined;
           return {
             ...base,
+            avatar_url: base.avatar_url || defaultAvatar,
             gol: mp.gol || 0,
             assist: mp.assist || 0,
           };
