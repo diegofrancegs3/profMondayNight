@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/public/lib/supabase';
-import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords } from 'lucide-react';
+import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords, RefreshCw } from 'lucide-react';
 import PlayerModal from '../../public/lib/components/PlayerModal';
 
 interface StatGiocatore {
@@ -27,10 +27,12 @@ interface TeamStats {
 }
 
 type TipoClassifica = 'gol' | 'assist' | 'presenze' | 'squadre';
+type FiltroSquadra = 'tutto' | 'bianchi' | 'neri';
 
 export default function StatistichePage() {
   // Stati per filtri
   const [tipo, setTipo] = useState<TipoClassifica>('gol');
+  const [filtroSquadra, setFiltroSquadra] = useState<FiltroSquadra>('tutto');
   const [stagioneId, setStagioneId] = useState<string | null>(null);
   const [stagioneNome, setStagioneNome] = useState<string>('');
   const [stagioniDisponibili, setStagioniDisponibili] = useState<Stagione[]>([]);
@@ -71,7 +73,7 @@ export default function StatistichePage() {
     loadSeasons();
   }, []);
 
-  // 2. Carica i dati in base a Tipo e Stagione selezionata
+  // 2. Carica i dati in base a Tipo, Filtro Squadra e Stagione selezionata
   useEffect(() => {
     async function loadData() {
       if (!stagioneId) return;
@@ -159,7 +161,13 @@ export default function StatistichePage() {
       if (tipo !== 'squadre') {
         const statsMap = new Map<string, number>();
 
-        matchPlayers.forEach((mp) => {
+        // Filtra matchPlayers in base a filtroSquadra
+        const filteredMatchPlayers = matchPlayers.filter((mp) => {
+          if (filtroSquadra === 'tutto') return true;
+          return mp.squadra === filtroSquadra;
+        });
+
+        filteredMatchPlayers.forEach((mp) => {
           const id = mp.giocatore_id;
           if (!id) return;
 
@@ -185,7 +193,7 @@ export default function StatistichePage() {
 
         const { data: playersData } = await supabase
           .from('giocatori')
-          .select('id, nickname, avatar_url')
+          .select('id, nickname, avatar_url, avatar_url_w, avatar_url_b')
           .in('id', playerIds);
 
         const defaultAvatar =
@@ -208,7 +216,16 @@ export default function StatistichePage() {
     }
 
     loadData();
-  }, [tipo, stagioneId]);
+  }, [tipo, stagioneId, filtroSquadra]);
+
+  // Alterna il filtro squadra ad ogni click
+  const handleToggleFiltroSquadra = () => {
+    setFiltroSquadra((prev) => {
+      if (prev === 'tutto') return 'bianchi';
+      if (prev === 'bianchi') return 'neri';
+      return 'tutto';
+    });
+  };
 
   // Gestione apertura scheda giocatore
   const handleOpenPlayerModal = (player: StatGiocatore) => {
@@ -254,6 +271,17 @@ export default function StatistichePage() {
     }
   };
 
+  const getFiltroSquadraBadge = () => {
+    switch (filtroSquadra) {
+      case 'bianchi':
+        return { label: 'Solo Bianchi ⚪', bg: 'bg-white text-slate-800 border-slate-300' };
+      case 'neri':
+        return { label: 'Solo Neri ⚫', bg: 'bg-slate-900 text-white border-slate-700' };
+      default:
+        return { label: 'Tutte le maglie 🌐', bg: 'bg-slate-100 text-slate-700 border-slate-200' };
+    }
+  };
+
   let currentRank = 0;
   let lastValue: number | null = null;
 
@@ -263,6 +291,8 @@ export default function StatistichePage() {
   const pctNeri = teamStats.totalePartite
     ? Math.round((teamStats.vittorieNeri / teamStats.totalePartite) * 100)
     : 0;
+
+  const filtroInfo = getFiltroSquadraBadge();
 
   return (
     <div className="space-y-1.5">
@@ -392,14 +422,21 @@ export default function StatistichePage() {
       ) : (
         /* VISTA 2: CONTENITORE TABELLA TOP 10 (GOL, ASSIST, PRESENZE) */
         <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
-          {/* Titolo Sezione */}
+          {/* Titolo Sezione + Pulsante Selettore Filtro Squadra */}
           <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 px-0.5">
             <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
               {getTitle()}
             </span>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              Top 10
-            </span>
+
+            {/* Tasto Selettore Squadra */}
+            <button
+              onClick={handleToggleFiltroSquadra}
+              className={`px-2 py-0.5 rounded-full border text-[10px] font-bold flex items-center gap-1 transition-all shadow-2xs ${filtroInfo.bg}`}
+              title="Clicca per cambiare filtro squadra"
+            >
+              <span>{filtroInfo.label}</span>
+              <RefreshCw size={10} className="opacity-60" />
+            </button>
           </div>
 
           {/* LISTA GIOCATORI */}
@@ -409,7 +446,7 @@ export default function StatistichePage() {
             </div>
           ) : classifica.length === 0 ? (
             <div className="py-12 text-center text-xs text-slate-400 font-medium">
-              Nessun dato registrato per questa stagione.
+              Nessun dato registrato per questa combinazione di filtri.
             </div>
           ) : (
             <div className="divide-y divide-slate-100">

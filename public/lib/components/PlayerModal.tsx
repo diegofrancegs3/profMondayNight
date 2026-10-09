@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/public/lib/supabase';
-import { X, Goal, Award, Footprints } from 'lucide-react';
+import { X, Goal, Award, Footprints, RefreshCw } from 'lucide-react';
 
 interface PlayerModalProps {
   isOpen: boolean;
@@ -16,9 +16,21 @@ interface PlayerModalProps {
   stagioneId?: string | null;
 }
 
+type FiltroSquadra = 'tutto' | 'bianchi' | 'neri';
+
 export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: PlayerModalProps) {
   const [stats, setStats] = useState({ gol: 0, assist: 0, presenze: 0 });
   const [loading, setLoading] = useState(false);
+  const [filtroSquadra, setFiltroSquadra] = useState<FiltroSquadra>('tutto');
+
+  // Alterna il filtro ad ogni click: tutto -> bianchi -> neri -> tutto
+  const handleToggleFiltro = () => {
+    setFiltroSquadra((prev) => {
+      if (prev === 'tutto') return 'bianchi';
+      if (prev === 'bianchi') return 'neri';
+      return 'tutto';
+    });
+  };
 
   useEffect(() => {
     async function loadStats() {
@@ -44,11 +56,18 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
           return;
         }
 
-        const { data: matchStats } = await supabase
+        let queryStats = supabase
           .from('partite_giocatori')
-          .select('gol, assist')
+          .select('gol, assist, squadra')
           .eq('giocatore_id', giocatore.id)
           .in('partita_id', partitaIds);
+
+        // Applica il filtro squadra se diverso da 'tutto'
+        if (filtroSquadra !== 'tutto') {
+          queryStats = queryStats.eq('squadra', filtroSquadra);
+        }
+
+        const { data: matchStats } = await queryStats;
 
         if (matchStats && matchStats.length > 0) {
           const presenze = matchStats.length;
@@ -68,12 +87,41 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
     if (isOpen) {
       loadStats();
     }
-  }, [isOpen, giocatore?.id, stagioneId]);
+  }, [isOpen, giocatore?.id, stagioneId, filtroSquadra]);
 
   if (!isOpen || !giocatore) return null;
 
   const defaultAvatar =
     'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
+
+  // Configurazione visiva del tasto selettore
+  const getFiltroBadgeStyle = () => {
+    switch (filtroSquadra) {
+      case 'bianchi':
+        return {
+          bg: '#ffffff',
+          color: '#0f172a',
+          border: '1px solid #cbd5e1',
+          label: 'Solo Bianchi ⚪',
+        };
+      case 'neri':
+        return {
+          bg: '#0f172a',
+          color: '#ffffff',
+          border: '1px solid #334155',
+          label: 'Solo Neri ⚫',
+        };
+      default:
+        return {
+          bg: '#f1f5f9',
+          color: '#334155',
+          border: '1px solid #e2e8f0',
+          label: 'Tutte le maglie 🌐',
+        };
+    }
+  };
+
+  const filtroStyle = getFiltroBadgeStyle();
 
   return (
     /* OVERLAY SFONDO (Trasparente scuro, copre lo schermo) */
@@ -165,7 +213,7 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
           />
         </div>
 
-        {/* Destra: Nome e Statistiche */}
+        {/* Destra: Nome, Selettore Squadra e Statistiche */}
         <div
           style={{
             display: 'flex',
@@ -191,11 +239,37 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
               color: '#94a3b8',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
-              margin: '0 0 16px 0',
+              margin: '0 0 8px 0',
             }}
           >
             {stagioneId ? 'Statistiche Stagione' : 'Statistiche Totali'}
           </p>
+
+          {/* TASTO SELETTORE SQUADRA (Tutto / Bianchi / Neri) */}
+          <button
+            onClick={handleToggleFiltro}
+            style={{
+              alignSelf: 'flex-start',
+              backgroundColor: filtroStyle.bg,
+              color: filtroStyle.color,
+              border: filtroStyle.border,
+              padding: '4px 10px',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            }}
+            title="Clicca per cambiare filtro squadra"
+          >
+            <span>{filtroStyle.label}</span>
+            <RefreshCw size={11} className="opacity-60" />
+          </button>
 
           {/* Badge Statistiche */}
           {loading ? (

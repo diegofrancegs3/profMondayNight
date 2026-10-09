@@ -8,7 +8,9 @@ import PlayerModal from '@/public/lib/components/PlayerModal';
 export interface Giocatore {
   id: string;
   nickname: string;
-  avatar_url: string;
+  avatar_url?: string;
+  avatar_url_w?: string;
+  avatar_url_b?: string;
   gol?: number;
   assist?: number;
 }
@@ -79,13 +81,13 @@ export default function Pitch({
     const clampedBenchIndex = Math.min(benchIndex, 4); // Max 5 riserve (indici 0..4)
 
     if (teamColor === 'white') {
-      // Bianchi: bordo sinistro (x=2%), dall'alto verso il basso (y da 8% a 40%)
+      // Bianchi: bordo sinistro (x=0%), dall'alto verso il basso
       return {
         x: 0,
         y: 8 + clampedBenchIndex * 12,
       };
     } else {
-      // Neri: bordo destro (x=98%), dal basso verso l'alto (y da 92% a 60%)
+      // Neri: bordo destro (x=100%), dal basso verso l'alto
       return {
         x: 100,
         y: 92 - clampedBenchIndex * 12,
@@ -93,14 +95,22 @@ export default function Pitch({
     }
   };
 
-  const getPlayerData = (item: any) => {
+  // Estrae i dati del giocatore selezionando avatar_url_w per i Bianchi e avatar_url_b per i Neri
+  const getPlayerData = (item: any, teamColor: 'white' | 'black') => {
     if (!item) return { id: null, nickname: 'Giocatore', avatar_url: null, gol: 0, assist: 0 };
 
     const playerObj = item.giocatori || item.giocatore || item;
 
     const id = playerObj.id || item.giocatore_id || item.id;
     const nickname = playerObj.nickname || item.nickname || 'Giocatore';
-    const avatar_url = playerObj.avatar_url || item.avatar_url || null;
+    
+    // Scelta dell'avatar specifico per la maglia di squadra (con fallback sull'avatar generico o default)
+    const specificAvatar =
+      teamColor === 'white'
+        ? playerObj.avatar_url_w || item.avatar_url_w
+        : playerObj.avatar_url_b || item.avatar_url_b;
+
+    const avatar_url = specificAvatar || playerObj.avatar_url || item.avatar_url || null;
     const gol = item.gol || 0;
     const assist = item.assist || 0;
 
@@ -220,7 +230,7 @@ export default function Pitch({
 
         {/* SQUADRA BIANCA (In alto e a sinistra) */}
         {whiteTeam.map((item, idx) => {
-          const playerData = getPlayerData(item);
+          const playerData = getPlayerData(item, 'white');
           const { id, nickname, avatar_url, gol, assist } = playerData;
           const pos = getPlayerPosition(idx, matchType, formationWhite, 'white');
           const isBench = idx >= maxPlayersInField;
@@ -248,8 +258,8 @@ export default function Pitch({
               <div
                 style={{
                   position: 'relative',
-                  width: isBench ? '40px' : '40px',
-                  height: isBench ? '54px' : '54px',
+                  width: '40px',
+                  height: '54px',
                   borderRadius: '6px',
                   border: '2px solid #ffffff',
                   backgroundColor: '#ffffff',
@@ -330,7 +340,7 @@ export default function Pitch({
                 <span
                   style={{
                     padding: '0px 3px',
-                    fontSize: isBench ? '8px' : '8px',
+                    fontSize: '8px',
                     fontWeight: 'bold',
                     backgroundColor: '#ffffff',
                     color: '#0f172a',
@@ -349,7 +359,7 @@ export default function Pitch({
 
         {/* SQUADRA NERA (In basso e a destra) */}
         {blackTeam.map((item, idx) => {
-          const playerData = getPlayerData(item);
+          const playerData = getPlayerData(item, 'black');
           const { id, nickname, avatar_url, gol, assist } = playerData;
           const pos = getPlayerPosition(idx, matchType, formationBlack, 'black');
           const isBench = idx >= maxPlayersInField;
@@ -377,8 +387,8 @@ export default function Pitch({
               <div
                 style={{
                   position: 'relative',
-                  width: isBench ? '40px' : '40px',
-                  height: isBench ? '54px' : '54px',
+                  width: '40px',
+                  height: '54px',
                   borderRadius: '6px',
                   border: '2px solid #0f172a',
                   backgroundColor: '#0f172a',
@@ -459,7 +469,7 @@ export default function Pitch({
                 <span
                   style={{
                     padding: '0px 3px',
-                    fontSize: isBench ? '8px' : '8px',
+                    fontSize: '8px',
                     fontWeight: 'bold',
                     backgroundColor: '#0f172a',
                     color: '#ffffff',

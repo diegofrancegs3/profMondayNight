@@ -10,6 +10,8 @@ interface Giocatore {
   id: string;
   nickname: string;
   avatar_url: string;
+  avatar_url_w?: string;
+  avatar_url_b?: string;
   gol?: number;
   assist?: number;
 }
@@ -99,7 +101,7 @@ export default function HomePage() {
         const { data: playersData } = playerIds.length
           ? await supabase
               .from('giocatori')
-              .select('id, nickname, avatar_url')
+              .select('id, nickname, avatar_url, avatar_url_w, avatar_url_b')
               .in('id', playerIds)
           : { data: [] };
 
