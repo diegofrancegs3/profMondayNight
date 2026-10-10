@@ -1,7 +1,6 @@
 'use server';
 
 import sql from '@/public/lib/db';
-import { revalidatePath } from 'next/cache';
 
 // Converte in modo pulito senza alterare i giorni
 function sanitizeMatch(match: any) {
@@ -285,7 +284,6 @@ export async function getAdminInitialData() {
   const stagioni = await sql`SELECT * FROM stagioni ORDER BY id DESC`;
   const giocatori = await sql`SELECT id, nickname, avatar_url, avatar_url_w, avatar_url_b FROM giocatori ORDER BY nickname ASC`;
   
-  // Utilizziamo TO_CHAR per evitare qualsiasi conversione automatica di timezone da parte di Neon/JS
   const partite = await sql`
     SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
     FROM partite 
@@ -309,8 +307,6 @@ export async function createStagione(nome: string): Promise<Stagione> {
     INSERT INTO stagioni (nome) VALUES (${nome}) 
     RETURNING id, nome
   `;
-  revalidatePath('/');
-  revalidatePath('/admin');
   return result[0] as Stagione;
 }
 
@@ -330,15 +326,11 @@ export async function saveMatch(matchForm: any, selectedMatchId: string | 'new')
       RETURNING id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato
     `;
   }
-  revalidatePath('/');
-  revalidatePath('/admin');
   return sanitizeMatch(result[0]);
 }
 
 export async function deleteMatch(matchId: string) {
   await sql`DELETE FROM partite WHERE id = ${matchId}`;
-  revalidatePath('/');
-  revalidatePath('/admin');
   return true;
 }
 
@@ -371,7 +363,5 @@ export async function saveMatchPlayers(partitaId: string, matchPlayers: any[]) {
       VALUES (${partitaId}, ${item.giocatore_id}, ${item.squadra}, ${Number(item.posizione) || 1}, ${Number(item.gol) || 0}, ${Number(item.assist) || 0})
     `;
   }
-  revalidatePath('/');
-  revalidatePath('/admin');
   return true;
 }
