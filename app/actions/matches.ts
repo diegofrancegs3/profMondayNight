@@ -1,14 +1,15 @@
 'use server';
 
 import sql from '@/public/lib/db';
+import { revalidatePath } from 'next/cache';
 
-// Converte gli oggetti Date del database in stringhe standard per evitare errori di serializzazione in React
+// Converte in modo pulito senza alterare i giorni
 function sanitizeMatch(match: any) {
   if (!match) return null;
   return {
     ...match,
-    data: match.data ? (match.data instanceof Date ? match.data.toISOString().split('T')[0] : String(match.data)) : null,
-    time: match.time ? String(match.time) : null,
+    data: match.data ? String(match.data).split('T')[0] : null,
+    time: match.time ? String(match.time).slice(0, 5) : null,
   };
 }
 
@@ -17,7 +18,8 @@ export async function getMatchData(selectedMatchId?: string | null) {
 
   if (selectedMatchId) {
     const matches = await sql`
-      SELECT * FROM partite 
+      SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
+      FROM partite 
       WHERE id = ${selectedMatchId} AND stato IN ('programmata', 'giocata') 
       LIMIT 1
     `;
@@ -27,7 +29,8 @@ export async function getMatchData(selectedMatchId?: string | null) {
   if (!currentMatch) {
     const todayStr = new Date().toISOString().split('T')[0];
     const upcoming = await sql`
-      SELECT * FROM partite 
+      SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
+      FROM partite 
       WHERE stato IN ('programmata', 'giocata') AND data >= ${todayStr}
       ORDER BY data ASC, time ASC 
       LIMIT 1
@@ -37,7 +40,8 @@ export async function getMatchData(selectedMatchId?: string | null) {
       currentMatch = upcoming[0];
     } else {
       const lastMatch = await sql`
-        SELECT * FROM partite 
+        SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
+        FROM partite 
         WHERE stato IN ('programmata', 'giocata')
         ORDER BY data DESC, time DESC 
         LIMIT 1
@@ -101,7 +105,8 @@ export async function getMatchData(selectedMatchId?: string | null) {
 
 export async function getMatchesList() {
   const matches = await sql`
-    SELECT * FROM partite 
+    SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
+    FROM partite 
     WHERE stato IN ('programmata', 'giocata') 
     ORDER BY data DESC, time DESC
   `;
@@ -167,7 +172,7 @@ export async function getSeasonsList(): Promise<Stagione[]> {
 
 export async function getStatisticsData(stagioneId: string, tipo: string, filtroSquadra: string) {
   const partite = await sql`
-    SELECT id, data FROM partite 
+    SELECT id, TO_CHAR(data, 'YYYY-MM-DD') as data FROM partite 
     WHERE stagione_id = ${stagioneId} AND stato = 'giocata' 
     ORDER BY data ASC
   `;
@@ -279,7 +284,13 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
 export async function getAdminInitialData() {
   const stagioni = await sql`SELECT * FROM stagioni ORDER BY id DESC`;
   const giocatori = await sql`SELECT id, nickname, avatar_url, avatar_url_w, avatar_url_b FROM giocatori ORDER BY nickname ASC`;
-  const partite = await sql`SELECT * FROM partite ORDER BY data DESC, time DESC`;
+  
+  // Utilizziamo TO_CHAR per evitare qualsiasi conversione automatica di timezone da parte di Neon/JS
+  const partite = await sql`
+    SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
+    FROM partite 
+    ORDER BY data DESC, time DESC
+  `;
   
   return { 
     stagioni, 
@@ -298,6 +309,8 @@ export async function createStagione(nome: string): Promise<Stagione> {
     INSERT INTO stagioni (nome) VALUES (${nome}) 
     RETURNING id, nome
   `;
+  revalidatePath('/');
+  revalidatePath('/admin');
   return result[0] as Stagione;
 }
 
@@ -307,21 +320,25 @@ export async function saveMatch(matchForm: any, selectedMatchId: string | 'new')
     result = await sql`
       INSERT INTO partite (stagione_id, data, time, tipologia, formazione_bianchi, formazione_neri, stato)
       VALUES (${matchForm.stagione_id}, ${matchForm.data}, ${matchForm.time}, ${matchForm.tipologia}, ${matchForm.formazione_bianchi}, ${matchForm.formazione_neri}, ${matchForm.stato})
-      RETURNING *
+      RETURNING id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato
     `;
   } else {
     result = await sql`
       UPDATE partite 
       SET stagione_id = ${matchForm.stagione_id}, data = ${matchForm.data}, time = ${matchForm.time}, tipologia = ${matchForm.tipologia}, formazione_bianchi = ${matchForm.formazione_bianchi}, formazione_neri = ${matchForm.formazione_neri}, stato = ${matchForm.stato}
       WHERE id = ${selectedMatchId}
-      RETURNING *
+      RETURNING id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato
     `;
   }
+  revalidatePath('/');
+  revalidatePath('/admin');
   return sanitizeMatch(result[0]);
 }
 
 export async function deleteMatch(matchId: string) {
   await sql`DELETE FROM partite WHERE id = ${matchId}`;
+  revalidatePath('/');
+  revalidatePath('/admin');
   return true;
 }
 
@@ -354,5 +371,7 @@ export async function saveMatchPlayers(partitaId: string, matchPlayers: any[]) {
       VALUES (${partitaId}, ${item.giocatore_id}, ${item.squadra}, ${Number(item.posizione) || 1}, ${Number(item.gol) || 0}, ${Number(item.assist) || 0})
     `;
   }
+  revalidatePath('/');
+  revalidatePath('/admin');
   return true;
 }
