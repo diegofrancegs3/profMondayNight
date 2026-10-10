@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { supabase } from '@/public/lib/supabase';
+import { getMatchData, getMatchesList } from '@/app/actions/matches';
 import Pitch from '@/public/lib/components/Pitch';
 import { Clock, Calendar, ChevronRight, X } from 'lucide-react';
 
@@ -47,109 +47,17 @@ export default function HomePage() {
   // Fallback locale per l'avatar
   const defaultAvatar = '/avatars/default.jpg';
 
-  // 1. Carica la partita selezionata o la più recente/prossima
+  // 1. Carica la partita selezionata o la più recente/prossima tramite Server Action (Neon)
   useEffect(() => {
     async function loadMatchData() {
       setLoading(true);
-      let currentMatch: Partita | null = null;
+      const res = await getMatchData(selectedMatchId);
 
-      if (selectedMatchId) {
-        const { data } = await supabase
-          .from('partite')
-          .select('*')
-          .eq('id', selectedMatchId)
-          .in('stato', ['programmata', 'giocata'])
-          .maybeSingle();
-        currentMatch = data;
-      }
-
-      if (!currentMatch) {
-        const todayStr = new Date().toISOString().split('T')[0];
-        let { data } = await supabase
-          .from('partite')
-          .select('*')
-          .in('stato', ['programmata', 'giocata'])
-          .gte('data', todayStr)
-          .order('data', { ascending: true })
-          .order('time', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-
-        if (!data) {
-          const { data: lastMatch } = await supabase
-            .from('partite')
-            .select('*')
-            .in('stato', ['programmata', 'giocata'])
-            .order('data', { ascending: false })
-            .order('time', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          data = lastMatch;
-        }
-
-        currentMatch = data;
-      }
-
-      setMatch(currentMatch);
-
-      if (currentMatch) {
-        // Recuperiamo tutti i giocatori associati alla partita (compresi quelli in panchina)
-        const { data: matchPlayers } = await supabase
-          .from('partite_giocatori')
-          .select('squadra, posizione, giocatore_id, gol, assist')
-          .eq('partita_id', currentMatch.id)
-          .order('posizione', { ascending: true });
-
-        const playerIds = matchPlayers?.map((mp) => mp.giocatore_id) || [];
-
-        const { data: playersData } = playerIds.length
-          ? await supabase
-              .from('giocatori')
-              .select('id, nickname, avatar_url, avatar_url_w, avatar_url_b')
-              .in('id', playerIds)
-          : { data: [] };
-
-        const playersMap = new Map(playersData?.map((p) => [p.id, p]));
-
-        const mapPlayerWithStats = (mp: any): Giocatore | undefined => {
-          const base = playersMap.get(mp.giocatore_id);
-          if (!base) return undefined;
-          return {
-            ...base,
-            avatar_url: base.avatar_url || defaultAvatar,
-            gol: mp.gol || 0,
-            assist: mp.assist || 0,
-          };
-        };
-
-        const wTeam =
-          matchPlayers
-            ?.filter((mp) => mp.squadra === 'bianchi')
-            .map(mapPlayerWithStats)
-            .filter((p): p is Giocatore => p !== undefined) || [];
-
-        const bTeam =
-          matchPlayers
-            ?.filter((mp) => mp.squadra === 'neri')
-            .map(mapPlayerWithStats)
-            .filter((p): p is Giocatore => p !== undefined) || [];
-
-        const wGoals =
-          matchPlayers
-            ?.filter((mp) => mp.squadra === 'bianchi')
-            .reduce((acc, mp) => acc + (mp.gol || 0), 0) ?? 0;
-
-        const bGoals =
-          matchPlayers
-            ?.filter((mp) => mp.squadra === 'neri')
-            .reduce((acc, mp) => acc + (mp.gol || 0), 0) ?? 0;
-
-        setWhiteTeam(wTeam);
-        setBlackTeam(bTeam);
-        setWhiteGoals(wGoals);
-        setBlackGoals(bGoals);
-      }
-
+      setMatch(res.match);
+      setWhiteTeam(res.whiteTeam as Giocatore[]);
+      setBlackTeam(res.blackTeam as Giocatore[]);
+      setWhiteGoals(res.whiteGoals);
+      setBlackGoals(res.blackGoals);
       setLoading(false);
     }
 
@@ -161,15 +69,9 @@ export default function HomePage() {
     setIsModalOpen(true);
     if (matchesList.length === 0) {
       setLoadingList(true);
-      const { data } = await supabase
-        .from('partite')
-        .select('*')
-        .in('stato', ['programmata', 'giocata'])
-        .order('data', { ascending: false })
-        .order('time', { ascending: false });
-
+      const data = await getMatchesList();
       if (data) {
-        setMatchesList(data);
+        setMatchesList(data as Partita[]);
       }
       setLoadingList(false);
     }

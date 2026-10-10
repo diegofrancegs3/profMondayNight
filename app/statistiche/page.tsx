@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/public/lib/supabase';
+import { getSeasonsList, getStatisticsData } from '@/app/actions/matches';
 import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords, RefreshCw } from 'lucide-react';
 import PlayerModal from '../../public/lib/components/PlayerModal';
 
@@ -23,26 +23,23 @@ interface TeamStats {
   vittorieNeri: number;
   pareggi: number;
   totalePartite: number;
-  serie: ('B' | 'N' | 'P')[]; // 'B' = Bianchi, 'N' = Neri, 'P' = Pareggio
+  serie: ('B' | 'N' | 'P')[];
 }
 
 type TipoClassifica = 'gol' | 'assist' | 'presenze' | 'squadre';
 type FiltroSquadra = 'tutto' | 'bianchi' | 'neri';
 
 export default function StatistichePage() {
-  // Stati per filtri
   const [tipo, setTipo] = useState<TipoClassifica>('gol');
   const [filtroSquadra, setFiltroSquadra] = useState<FiltroSquadra>('tutto');
   const [stagioneId, setStagioneId] = useState<string | null>(null);
   const [stagioneNome, setStagioneNome] = useState<string>('');
   const [stagioniDisponibili, setStagioniDisponibili] = useState<Stagione[]>([]);
 
-  // Stati per dati e popup filtro
   const [classifica, setClassifica] = useState<StatGiocatore[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
-  // Stato per Statistiche Squadre (Bianchi vs Neri)
   const [teamStats, setTeamStats] = useState<TeamStats>({
     vittorieBianchi: 0,
     vittorieNeri: 0,
@@ -51,21 +48,14 @@ export default function StatistichePage() {
     serie: [],
   });
 
-  // Stati per PlayerModal
   const [selectedPlayer, setSelectedPlayer] = useState<StatGiocatore | null>(null);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState<boolean>(false);
 
-  // 1. Carica le stagioni disponibili dalla tabella "stagioni"
   useEffect(() => {
     async function loadSeasons() {
-      const { data } = await supabase
-        .from('stagioni')
-        .select('id, nome')
-        .order('nome', { ascending: false });
-
+      const data = await getSeasonsList();
       if (data && data.length > 0) {
         setStagioniDisponibili(data);
-        // Imposta la prima stagione di default
         setStagioneId(data[0].id);
         setStagioneNome(data[0].nome);
       }
@@ -73,162 +63,21 @@ export default function StatistichePage() {
     loadSeasons();
   }, []);
 
-  // 2. Carica i dati in base a Tipo, Filtro Squadra e Stagione selezionata
   useEffect(() => {
     async function loadData() {
       if (!stagioneId) return;
 
       setLoading(true);
+      const res = await getStatisticsData(stagioneId, tipo, filtroSquadra);
 
-      // Recupera SOLO le partite giocate della stagione selezionata
-      const { data: partite } = await supabase
-        .from('partite')
-        .select('id, data')
-        .eq('stagione_id', stagioneId)
-        .eq('stato', 'giocata')
-        .order('data', { ascending: true });
-
-      const partitaIds = partite?.map((p) => p.id) || [];
-
-      if (partitaIds.length === 0) {
-        setClassifica([]);
-        setTeamStats({
-          vittorieBianchi: 0,
-          vittorieNeri: 0,
-          pareggi: 0,
-          totalePartite: 0,
-          serie: [],
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Recupera le convocazioni/presenze con i gol segnati
-      const { data: matchPlayers } = await supabase
-        .from('partite_giocatori')
-        .select('partita_id, giocatore_id, squadra, gol, assist')
-        .in('partita_id', partitaIds);
-
-      if (!matchPlayers || matchPlayers.length === 0) {
-        setClassifica([]);
-        setTeamStats({
-          vittorieBianchi: 0,
-          vittorieNeri: 0,
-          pareggi: 0,
-          totalePartite: 0,
-          serie: [],
-        });
-        setLoading(false);
-        return;
-      }
-
-      // --- CALCOLO STATISTICHE SQUADRE (BIANCHI vs NERI) ---
-      let vBianchi = 0;
-      let vNeri = 0;
-      let pareggi = 0;
-      const serieResult: ('B' | 'N' | 'P')[] = [];
-
-      (partite || []).forEach((p) => {
-        const pPlayers = matchPlayers.filter((mp) => mp.partita_id === p.id);
-        const golBianchi = pPlayers
-          .filter((mp) => mp.squadra === 'bianchi')
-          .reduce((acc, curr) => acc + (curr.gol || 0), 0);
-        const golNeri = pPlayers
-          .filter((mp) => mp.squadra === 'neri')
-          .reduce((acc, curr) => acc + (curr.gol || 0), 0);
-
-        if (golBianchi > golNeri) {
-          vBianchi++;
-          serieResult.push('B');
-        } else if (golNeri > golBianchi) {
-          vNeri++;
-          serieResult.push('N');
-        } else {
-          pareggi++;
-          serieResult.push('P');
-        }
-      });
-
-      setTeamStats({
-        vittorieBianchi: vBianchi,
-        vittorieNeri: vNeri,
-        pareggi: pareggi,
-        totalePartite: partite?.length || 0,
-        serie: serieResult,
-      });
-
-      // --- CALCOLO CLASSIFICA SINGOLI GIOCATORI ---
-      if (tipo !== 'squadre') {
-        const statsMap = new Map<string, number>();
-
-        // Filtra matchPlayers in base a filtroSquadra
-        const filteredMatchPlayers = matchPlayers.filter((mp) => {
-          if (filtroSquadra === 'tutto') return true;
-          return mp.squadra === filtroSquadra;
-        });
-
-        filteredMatchPlayers.forEach((mp) => {
-          const id = mp.giocatore_id;
-          if (!id) return;
-
-          const currentVal = statsMap.get(id) || 0;
-          if (tipo === 'gol') {
-            statsMap.set(id, currentVal + (mp.gol || 0));
-          } else if (tipo === 'assist') {
-            statsMap.set(id, currentVal + (mp.assist || 0));
-          } else if (tipo === 'presenze') {
-            statsMap.set(id, currentVal + 1);
-          }
-        });
-
-        const playerIds = Array.from(statsMap.keys()).filter(
-          (id) => (statsMap.get(id) || 0) > 0
-        );
-
-        if (playerIds.length === 0) {
-          setClassifica([]);
-          setLoading(false);
-          return;
-        }
-
-        const { data: playersData } = await supabase
-          .from('giocatori')
-          .select('id, nickname, avatar_url, avatar_url_w, avatar_url_b')
-          .in('id', playerIds);
-
-        // Fallback locale salvato nella cartella public/avatars/
-        const defaultAvatar = '/avatars/default.jpg';
-
-        const list: StatGiocatore[] = (playersData || [])
-          .map((p) => {
-            // Seleziona l'avatar in base al filtro squadra selezionato
-            let avatarPath = p.avatar_url;
-            if (filtroSquadra === 'bianchi' && p.avatar_url_w) {
-              avatarPath = p.avatar_url_w;
-            } else if (filtroSquadra === 'neri' && p.avatar_url_b) {
-              avatarPath = p.avatar_url_b;
-            }
-
-            return {
-              id: p.id,
-              nickname: p.nickname || 'Giocatore',
-              avatar_url: avatarPath || defaultAvatar,
-              valore: statsMap.get(p.id) || 0,
-            };
-          })
-          .sort((a, b) => b.valore - a.valore)
-          .slice(0, 10);
-
-        setClassifica(list);
-      }
-
+      setClassifica(res.classifica);
+      setTeamStats(res.teamStats);
       setLoading(false);
     }
 
     loadData();
   }, [tipo, stagioneId, filtroSquadra]);
 
-  // Alterna il filtro squadra ad ogni click
   const handleToggleFiltroSquadra = () => {
     setFiltroSquadra((prev) => {
       if (prev === 'tutto') return 'bianchi';
@@ -237,19 +86,16 @@ export default function StatistichePage() {
     });
   };
 
-  // Gestione apertura scheda giocatore
   const handleOpenPlayerModal = (player: StatGiocatore) => {
     setSelectedPlayer(player);
     setIsPlayerModalOpen(true);
   };
 
-  // Gestione selezione stagione
   const handleSelectStagione = (st: Stagione) => {
     setStagioneId(st.id);
     setStagioneNome(st.nome);
   };
 
-  // Gestione selezione tipo statistica
   const handleSelectTipo = (nuovoTipo: TipoClassifica) => {
     setTipo(nuovoTipo);
     setIsModalOpen(false);
@@ -306,7 +152,6 @@ export default function StatistichePage() {
 
   return (
     <div className="space-y-1.5">
-      {/* HEADER CLASSIFICA COMPATTO */}
       <div
         onClick={() => setIsModalOpen(true)}
         className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-50 transition-colors"
@@ -325,7 +170,6 @@ export default function StatistichePage() {
         </div>
       </div>
 
-      {/* VISTA 1: SCHEDA SFIDA SQUADRE */}
       {tipo === 'squadre' ? (
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
@@ -422,7 +266,6 @@ export default function StatistichePage() {
           )}
         </div>
       ) : (
-        /* VISTA 2: TABELLA TOP 10 */
         <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
           <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 px-0.5">
             <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
@@ -499,7 +342,6 @@ export default function StatistichePage() {
         </div>
       )}
 
-      {/* POPUP SELEZIONE CLASSIFICA E STAGIONE */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl flex flex-col shadow-xl overflow-hidden">
@@ -601,7 +443,6 @@ export default function StatistichePage() {
         </div>
       )}
 
-      {/* POPUP SCHEDA GIOCATORE */}
       <PlayerModal
         isOpen={isPlayerModalOpen}
         onClose={() => {

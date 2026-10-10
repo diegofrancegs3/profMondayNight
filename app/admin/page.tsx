@@ -2,7 +2,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/public/lib/supabase';
+import { 
+  getAdminInitialData, 
+  createStagione, 
+  saveMatch, 
+  deleteMatch, 
+  getMatchPlayersAdmin, 
+  saveMatchPlayers 
+} from '@/app/actions/matches';
 import { Save, Plus, Trash2, Calendar, Users, Shield, LogOut, Lock, LayoutGrid } from 'lucide-react';
 import Pitch from '@/public/lib/components/Pitch';
 import { FORMATIONS, getFormationsForType, getDefaultFormationForType } from '@/public/lib/formations';
@@ -43,14 +50,11 @@ interface PartitaGiocatore {
 }
 
 export default function AdminPage() {
-  // Autenticazione
-  const [session, setSession] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [session, setSession] = useState<boolean>(false);
+  const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Dati Admin
   const [stagioni, setStagioni] = useState<Stagione[]>([]);
   const [selectedStagioneId, setSelectedStagioneId] = useState<string>('');
   const [isCreatingStagione, setIsCreatingStagione] = useState<boolean>(false);
@@ -60,7 +64,6 @@ export default function AdminPage() {
   const [partite, setPartite] = useState<Partita[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Selezione partita (null = nessuna partita scelta, 'new' = nuova partita)
   const [selectedMatchId, setSelectedMatchId] = useState<string | 'new' | null>(null);
 
   const [matchForm, setMatchForm] = useState<Omit<Partita, 'id'>>({
@@ -75,7 +78,6 @@ export default function AdminPage() {
 
   const [matchPlayers, setMatchPlayers] = useState<PartitaGiocatore[]>([]);
 
-  // Formattazione data uguale a HomePage
   const formatDate = (dateStr?: string, timeStr?: string) => {
     if (!dateStr) return '';
     const dateObj = new Date(`${dateStr}T${timeStr || '00:00'}`);
@@ -89,65 +91,44 @@ export default function AdminPage() {
     return dateStr;
   };
 
-  // Controllo Sessione Utente
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setAuthLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setAuthLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Caricamento Dati Iniziali se autenticato
-  useEffect(() => {
-    if (session) {
+    const isAuth = sessionStorage.getItem('admin_auth') === 'true';
+    if (isAuth) {
+      setSession(true);
       loadBaseData();
     }
-  }, [session]);
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setLoginError(error.message);
+    if (passwordInput === 'admin2026') { // Password configurabile per il circolo
+      sessionStorage.setItem('admin_auth', 'true');
+      setSession(true);
+      loadBaseData();
+    } else {
+      setLoginError('Password non errata');
     }
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    sessionStorage.removeItem('admin_auth');
+    setSession(false);
   }
 
   async function loadBaseData() {
     setLoading(true);
-    const { data: stData } = await supabase.from('stagioni').select('*').order('id', { ascending: false });
-    const { data: gData } = await supabase
-      .from('giocatori')
-      .select('id, nickname, avatar_url, avatar_url_w, avatar_url_b')
-      .order('nickname', { ascending: true });
-    const { data: pData } = await supabase
-      .from('partite')
-      .select('*')
-      .order('data', { ascending: false })
-      .order('time', { ascending: false });
+    const data = await getAdminInitialData();
 
-    if (stData && stData.length > 0) {
-      setStagioni(stData);
-      const maxStagione = stData[0];
+    if (data.stagioni && data.stagioni.length > 0) {
+      setStagioni(data.stagioni as Stagione[]);
+      const maxStagione = data.stagioni[0];
       setSelectedStagioneId(maxStagione.id);
       setMatchForm((prev) => ({ ...prev, stagione_id: maxStagione.id }));
     }
 
-    if (gData) setGiocatori(gData);
-    if (pData) setPartite(pData);
+    if (data.giocatori) setGiocatori(data.giocatori as Giocatore[]);
+    if (data.partite) setPartite(data.partite as Partita[]);
 
     setLoading(false);
   }
@@ -166,13 +147,9 @@ export default function AdminPage() {
   async function handleCreateStagione() {
     if (!nuovaStagioneNome.trim()) return;
 
-    const { data, error } = await supabase
-      .from('stagioni')
-      .insert([{ nome: nuovaStagioneNome.trim() }])
-      .select()
-      .single();
+    const data = await createStagione(nuovaStagioneNome.trim());
 
-    if (!error && data) {
+    if (data) {
       const updatedStagioni = [data, ...stagioni];
       setStagioni(updatedStagioni);
       setSelectedStagioneId(data.id);
@@ -182,11 +159,11 @@ export default function AdminPage() {
       setSelectedMatchId(null);
       alert('Nuova stagione creata e selezionata!');
     } else {
-      alert('Errore creazione stagione: ' + error?.message);
+      alert('Errore creazione stagione');
     }
   }
 
-  function handleSelectMatch(matchId: string) {
+  async function handleSelectMatch(matchId: string) {
     if (!matchId) {
       setSelectedMatchId(null);
       return;
@@ -243,41 +220,35 @@ export default function AdminPage() {
   }
 
   async function loadMatchPlayers(partitaId: string) {
-    const { data } = await supabase
-      .from('partite_giocatori')
-      .select('*, giocatori(id, nickname, avatar_url, avatar_url_w, avatar_url_b)')
-      .eq('partita_id', partitaId)
-      .order('squadra', { ascending: true })
-      .order('posizione', { ascending: true });
-
+    const data = await getMatchPlayersAdmin(partitaId);
     if (data) {
       setMatchPlayers(data as PartitaGiocatore[]);
     }
   }
 
   async function handleSaveMatch() {
+    if (!selectedMatchId) {
+      alert('Nessuna partita selezionata!');
+      return;
+    }
+
     if (!matchForm.stagione_id) {
       alert('Seleziona una stagione!');
       return;
     }
 
-    if (selectedMatchId === 'new') {
-      const { data, error } = await supabase.from('partite').insert([matchForm]).select().single();
-      if (!error && data) {
+    const data = await saveMatch(matchForm, selectedMatchId);
+    if (data) {
+      if (selectedMatchId === 'new') {
         setPartite([data, ...partite]);
         setSelectedMatchId(data.id);
         alert('Partita creata! Ora puoi assegnare i giocatori.');
       } else {
-        alert('Errore salvataggio partita: ' + error?.message);
-      }
-    } else if (selectedMatchId) {
-      const { error } = await supabase.from('partite').update(matchForm).eq('id', selectedMatchId);
-      if (!error) {
         setPartite(partite.map((p) => (p.id === selectedMatchId ? { ...p, ...matchForm } : p)));
         alert('Dati partita aggiornati!');
-      } else {
-        alert('Errore aggiornamento partita: ' + error?.message);
       }
+    } else {
+      alert('Errore durante il salvataggio della partita.');
     }
   }
 
@@ -290,23 +261,18 @@ export default function AdminPage() {
     }
 
     if (matchPlayers.length > 0) {
-      alert('Non puoi eliminare una partita a cui sono stati assegnati dei giocatori! Rimuovi prima tutti i giocatori.');
+      alert('Non puoi eliminare una partita a cui sono stati assegnati dei giocatori!');
       return;
     }
 
-    const confirmDelete = window.confirm('Sei sicuro di voler eliminare questa partita? L\'operazione è irreversibile.');
+    const confirmDelete = window.confirm('Sei sicuro di voler eliminare questa partita?');
     if (!confirmDelete) return;
 
-    const { error } = await supabase.from('partite').delete().eq('id', selectedMatchId);
-
-    if (!error) {
-      alert('Partita eliminata con successo!');
-      setPartite(partite.filter((p) => p.id !== selectedMatchId));
-      setSelectedMatchId(null);
-      setMatchPlayers([]);
-    } else {
-      alert("Errore durante l'eliminazione della partita: " + error.message);
-    }
+    await deleteMatch(selectedMatchId);
+    alert('Partita eliminata con successo!');
+    setPartite(partite.filter((p) => p.id !== selectedMatchId));
+    setSelectedMatchId(null);
+    setMatchPlayers([]);
   }
 
   function handleAddPlayerToMatch(squadra: 'bianchi' | 'neri') {
@@ -319,7 +285,7 @@ export default function AdminPage() {
     const available = giocatori.find((g) => !usedIds.has(g.id));
 
     if (!available) {
-      alert('Tutti i giocatori disponibili sono già stati aggiunti alla partita!');
+      alert('Tutti i giocatori disponibili sono già stati aggiunti!');
       return;
     }
 
@@ -352,30 +318,9 @@ export default function AdminPage() {
 
   async function handleSavePlayers() {
     if (!selectedMatchId || selectedMatchId === 'new') return;
-
-    await supabase.from('partite_giocatori').delete().eq('partita_id', selectedMatchId);
-
-    if (matchPlayers.length > 0) {
-      const recordsToInsert = matchPlayers.map((item) => ({
-        partita_id: item.partita_id,
-        giocatore_id: item.giocatore_id,
-        squadra: item.squadra,
-        posizione: Number(item.posizione) || 1,
-        gol: Number(item.gol) || 0,
-        assist: Number(item.assist) || 0,
-      }));
-
-      const { error } = await supabase.from('partite_giocatori').insert(recordsToInsert);
-
-      if (!error) {
-        alert('Formazione e statistiche salvate con successo!');
-        loadMatchPlayers(selectedMatchId);
-      } else {
-        alert('Errore durante il salvataggio dei giocatori: ' + error.message);
-      }
-    } else {
-      alert('Rosa della partita svuotata.');
-    }
+    await saveMatchPlayers(selectedMatchId, matchPlayers);
+    alert('Formazione e statistiche salvate con successo!');
+    loadMatchPlayers(selectedMatchId);
   }
 
   const filteredPartite = partite.filter((p) => p.stagione_id === selectedStagioneId);
@@ -403,10 +348,6 @@ export default function AdminPage() {
     matchForm.stato === 'tbd' &&
     matchPlayers.length === 0;
 
-  if (authLoading) {
-    return <div className="p-4 text-center text-xs text-slate-500">Verifica credenziali...</div>;
-  }
-
   if (!session) {
     return (
       <div className="p-4 max-w-sm mx-auto my-10 space-y-4 text-slate-800 text-xs">
@@ -418,25 +359,13 @@ export default function AdminPage() {
 
           <form onSubmit={handleLogin} className="space-y-3">
             <div>
-              <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Email</label>
-              <input
-                type="email"
-                required
-                placeholder="admin@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:border-slate-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Password</label>
+              <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Password Admin</label>
               <input
                 type="password"
                 required
                 placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
                 className="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:border-slate-500"
               />
             </div>
@@ -461,7 +390,6 @@ export default function AdminPage() {
 
   return (
     <div className="p-3 max-w-lg mx-auto space-y-4 text-slate-800 text-xs">
-      {/* HEADER AMMINISTRAZIONE */}
       <div className="flex items-center justify-between bg-slate-900 text-white p-3 rounded-xl shadow-xs">
         <div className="flex items-center gap-2">
           <Shield size={18} className="text-emerald-400" />
@@ -476,10 +404,8 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* SELEZIONE STAGIONE E PARTITA */}
       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Selettore Stagione */}
           <div>
             <label className="block text-[10px] font-semibold text-slate-500 mb-1">Stagione</label>
             <select
@@ -514,7 +440,6 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* Seleziona Partita con stile formato armonizzato alla Home */}
           <div>
             <label className="block text-[10px] font-semibold text-slate-500 mb-1">Seleziona Partita</label>
             <select
@@ -553,10 +478,8 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* VISTA DETTAGLI PARTITA */}
       {selectedMatchId && (
         <>
-          {/* DETTAGLI PARTITA */}
           <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
             <div className="flex items-center justify-between border-b pb-1.5">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">
@@ -645,7 +568,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* PULSANTI SALVA ED ELIMINA PARTITA */}
             <div className="flex items-center gap-2 pt-1">
               <button
                 onClick={handleSaveMatch}
@@ -659,11 +581,6 @@ export default function AdminPage() {
                 <button
                   onClick={handleDeleteMatch}
                   disabled={!canDeleteMatch}
-                  title={
-                    !canDeleteMatch
-                      ? "Puoi eliminare solo partite con stato 'tbd' e senza giocatori assegnati."
-                      : "Elimina definitivamente questa partita"
-                  }
                   className={`px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors shadow-xs ${
                     canDeleteMatch
                       ? 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'
@@ -677,7 +594,6 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* CONVOCATI E STATISTICHE GIOCATORI */}
           {selectedMatchId !== 'new' && (
             <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
               <div className="flex items-center justify-between border-b pb-1.5">
@@ -819,7 +735,6 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ANTEPRIMA CAMPO DI GIOCO tramite Pitch */}
           <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
             <div className="flex items-center justify-between border-b pb-1.5">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">

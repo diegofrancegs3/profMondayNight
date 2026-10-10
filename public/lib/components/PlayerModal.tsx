@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/public/lib/supabase';
+import { getPlayerStats } from '@/app/actions/matches';
 import { X, Goal, Award, Footprints, RefreshCw } from 'lucide-react';
 
 interface PlayerModalProps {
@@ -25,7 +25,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
   const [loading, setLoading] = useState(false);
   const [filtroSquadra, setFiltroSquadra] = useState<FiltroSquadra>('tutto');
 
-  // Alterna il filtro ad ogni click: tutto -> bianchi -> neri -> tutto
   const handleToggleFiltro = () => {
     setFiltroSquadra((prev) => {
       if (prev === 'tutto') return 'bianchi';
@@ -40,45 +39,8 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
       setLoading(true);
 
       try {
-        let queryPartite = supabase
-          .from('partite')
-          .select('id')
-          .eq('stato', 'giocata');
-
-        if (stagioneId) {
-          queryPartite = queryPartite.eq('stagione_id', stagioneId);
-        }
-
-        const { data: partite } = await queryPartite;
-        const partitaIds = partite?.map((p) => p.id) || [];
-
-        if (partitaIds.length === 0) {
-          setStats({ gol: 0, assist: 0, presenze: 0 });
-          setLoading(false);
-          return;
-        }
-
-        let queryStats = supabase
-          .from('partite_giocatori')
-          .select('gol, assist, squadra')
-          .eq('giocatore_id', giocatore.id)
-          .in('partita_id', partitaIds);
-
-        // Applica il filtro squadra se diverso da 'tutto'
-        if (filtroSquadra !== 'tutto') {
-          queryStats = queryStats.eq('squadra', filtroSquadra);
-        }
-
-        const { data: matchStats } = await queryStats;
-
-        if (matchStats && matchStats.length > 0) {
-          const presenze = matchStats.length;
-          const gol = matchStats.reduce((acc, item) => acc + (item.gol || 0), 0);
-          const assist = matchStats.reduce((acc, item) => acc + (item.assist || 0), 0);
-          setStats({ gol, assist, presenze });
-        } else {
-          setStats({ gol: 0, assist: 0, presenze: 0 });
-        }
+        const data = await getPlayerStats(giocatore.id, stagioneId, filtroSquadra);
+        setStats(data);
       } catch (err) {
         console.error('Errore durante il caricamento delle statistiche:', err);
       } finally {
@@ -93,10 +55,8 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
 
   if (!isOpen || !giocatore) return null;
 
-  // Fallback locale salvato nella cartella public/avatars/
   const defaultAvatar = '/avatars/default.jpg';
 
-  // Seleziona l'immagine avatar locale corretta in base al filtro selezionato
   const getAvatarPath = () => {
     if (filtroSquadra === 'bianchi' && giocatore.avatar_url_w) {
       return giocatore.avatar_url_w;
@@ -107,7 +67,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
     return giocatore.avatar_url || defaultAvatar;
   };
 
-  // Configurazione visiva del tasto selettore
   const getFiltroBadgeStyle = () => {
     switch (filtroSquadra) {
       case 'bianchi':
@@ -137,7 +96,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
   const filtroStyle = getFiltroBadgeStyle();
 
   return (
-    /* OVERLAY SFONDO */
     <div
       onClick={onClose}
       style={{
@@ -155,7 +113,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
         cursor: 'pointer',
       }}
     >
-      {/* BOX POPUP */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -176,7 +133,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
           cursor: 'default',
         }}
       >
-        {/* Pulsante Chiudi */}
         <button
           onClick={onClose}
           style={{
@@ -199,7 +155,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
           <X size={20} />
         </button>
 
-        {/* Sinistra: Immagine Avatar Locale */}
         <div
           style={{
             width: '123px',
@@ -226,7 +181,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
           />
         </div>
 
-        {/* Destra: Nome, Selettore Squadra e Statistiche */}
         <div
           style={{
             display: 'flex',
@@ -258,7 +212,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
             {stagioneId ? 'Statistiche Stagione' : 'Statistiche Totali'}
           </p>
 
-          {/* TASTO SELETTORE SQUADRA */}
           <button
             onClick={handleToggleFiltro}
             style={{
@@ -284,7 +237,6 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
             <RefreshCw size={11} className="opacity-60" />
           </button>
 
-          {/* Badge Statistiche */}
           {loading ? (
             <div style={{ fontSize: '13px', color: '#94a3b8' }}>Caricamento...</div>
           ) : (
