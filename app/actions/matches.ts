@@ -279,8 +279,6 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
 export async function getAdminInitialData() {
   const stagioni = await sql`SELECT * FROM stagioni ORDER BY id DESC`;
   const giocatori = await sql`SELECT id, nickname, avatar_url, avatar_url_w, avatar_url_b FROM giocatori ORDER BY nickname ASC`;
-  
-  // Rimuovi qualsiasi filtro WHERE sullo stato per caricare tutte le partite nel pannello admin
   const partite = await sql`SELECT * FROM partite ORDER BY data DESC, time DESC`;
   
   return { 
@@ -290,13 +288,11 @@ export async function getAdminInitialData() {
   };
 }
 
-// Aggiungi questa interfaccia all'inizio o vicino a createStagione
 export interface Stagione {
   id: string;
   nome: string;
 }
 
-// E la funzione createStagione risulterà corretta:
 export async function createStagione(nome: string): Promise<Stagione> {
   const result = await sql`
     INSERT INTO stagioni (nome) VALUES (${nome}) 

@@ -1,6 +1,9 @@
 // app/admin/page.tsx
 'use client';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { useState, useEffect } from 'react';
 import { 
   getAdminInitialData, 
@@ -102,7 +105,7 @@ export default function AdminPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError(null);
-    if (passwordInput === 'admin2026') { // Password configurabile per il circolo
+    if (passwordInput === 'forzamilan') { // Password configurabile per il circolo
       sessionStorage.setItem('admin_auth', 'true');
       setSession(true);
       loadBaseData();

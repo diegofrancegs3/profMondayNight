@@ -1,6 +1,9 @@
 // app/statistiche/page.tsx
 'use client';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { useState, useEffect } from 'react';
 import { getSeasonsList, getStatisticsData } from '@/app/actions/matches';
 import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords, RefreshCw } from 'lucide-react';
