@@ -1,8 +1,14 @@
 // public/lib/db.ts
 import { neon } from '@neondatabase/serverless';
-import { ENV } from '/home/diegofrancegs3/profMondayNight/public/lib/env.config.js'; // Il tuo file statico con le configurazioni
 
-// Inizializza il client SQL di Neon con la connection string
-const sql = neon(ENV.NEON_DATABASE_URL);
+// Legge la stringa di connessione dalle variabili d'ambiente (sia locale che su Vercel)
+const connectionString = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error('La variabile d\'ambiente NEON_DATABASE_URL non è definita.');
+}
+
+// Inizializza il client SQL di Neon
+const sql = neon(connectionString);
 
 export default sql;
