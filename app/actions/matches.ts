@@ -2,7 +2,6 @@
 'use server';
 
 import sql from '@/public/lib/db';
-import { revalidatePath } from 'next/cache';
 
 // Converte in modo pulito senza alterare i giorni
 function sanitizeMatch(match: any) {
@@ -309,9 +308,6 @@ export async function createStagione(nome: string): Promise<Stagione> {
     INSERT INTO stagioni (nome) VALUES (${nome}) 
     RETURNING id, nome
   `;
-  revalidatePath('/'); // Invalida la cache del server
-  revalidatePath('/admin');
-  revalidatePath('/statistiche');
   return result[0] as Stagione;
 }
 
@@ -331,17 +327,11 @@ export async function saveMatch(matchForm: any, selectedMatchId: string | 'new')
       RETURNING id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato
     `;
   }
-  revalidatePath('/');
-  revalidatePath('/admin');
-  revalidatePath('/statistiche');
   return sanitizeMatch(result[0]);
 }
 
 export async function deleteMatch(matchId: string) {
   await sql`DELETE FROM partite WHERE id = ${matchId}`;
-  revalidatePath('/');
-  revalidatePath('/admin');
-  revalidatePath('/statistiche');
   return true;
 }
 
@@ -374,8 +364,5 @@ export async function saveMatchPlayers(partitaId: string, matchPlayers: any[]) {
       VALUES (${partitaId}, ${item.giocatore_id}, ${item.squadra}, ${Number(item.posizione) || 1}, ${Number(item.gol) || 0}, ${Number(item.assist) || 0})
     `;
   }
-  revalidatePath('/');
-  revalidatePath('/admin');
-  revalidatePath('/statistiche');
   return true;
 }
