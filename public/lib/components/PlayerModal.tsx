@@ -33,6 +33,13 @@ export default function PlayerModal({ isOpen, onClose, giocatore, stagioneId }: 
     });
   };
 
+  // Reset del filtro squadra quando si cambia giocatore
+  useEffect(() => {
+    if (giocatore?.id) {
+      setFiltroSquadra('tutto');
+    }
+  }, [giocatore?.id]);
+
   useEffect(() => {
     async function loadStats() {
       if (!giocatore?.id) return;

@@ -6,6 +6,7 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSeasonsList, getStatisticsData } from '@/app/actions/matches';
 import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords, RefreshCw } from 'lucide-react';
 import PlayerModal from '../../public/lib/components/PlayerModal';
@@ -34,6 +35,7 @@ type TipoClassifica = 'gol' | 'assist' | 'presenze' | 'squadre';
 type FiltroSquadra = 'tutto' | 'bianchi' | 'neri';
 
 export default function StatistichePage() {
+  const router = useRouter();
   const [tipo, setTipo] = useState<TipoClassifica>('gol');
   const [filtroSquadra, setFiltroSquadra] = useState<FiltroSquadra>('tutto');
   const [stagioneId, setStagioneId] = useState<string | null>(null);
@@ -55,6 +57,7 @@ export default function StatistichePage() {
   const [selectedPlayer, setSelectedPlayer] = useState<StatGiocatore | null>(null);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState<boolean>(false);
 
+  // 1. Caricamento iniziale delle stagioni dal DB
   useEffect(() => {
     async function loadSeasons() {
       const data = await getSeasonsList();
@@ -67,6 +70,7 @@ export default function StatistichePage() {
     loadSeasons();
   }, []);
 
+  // 2. Caricamento dinamico dei dati delle statistiche al variare dei filtri
   useEffect(() => {
     async function loadData() {
       if (!stagioneId) return;
@@ -81,6 +85,15 @@ export default function StatistichePage() {
 
     loadData();
   }, [tipo, stagioneId, filtroSquadra]);
+
+  // Apre il modal e rinfresca la lista stagioni disponibili per prendere eventuali nuove aggiunte
+  const handleOpenFilterModal = async () => {
+    setIsModalOpen(true);
+    const data = await getSeasonsList();
+    if (data && data.length > 0) {
+      setStagioniDisponibili(data);
+    }
+  };
 
   const handleToggleFiltroSquadra = () => {
     setFiltroSquadra((prev) => {
@@ -98,11 +111,13 @@ export default function StatistichePage() {
   const handleSelectStagione = (st: Stagione) => {
     setStagioneId(st.id);
     setStagioneNome(st.nome);
+    router.refresh(); // Pulizia cache router al cambio stagione
   };
 
   const handleSelectTipo = (nuovoTipo: TipoClassifica) => {
     setTipo(nuovoTipo);
     setIsModalOpen(false);
+    router.refresh(); // Pulizia cache router al cambio tipologia
   };
 
   const getTitle = () => {
@@ -157,7 +172,7 @@ export default function StatistichePage() {
   return (
     <div className="space-y-1.5">
       <div
-        onClick={() => setIsModalOpen(true)}
+        onClick={handleOpenFilterModal}
         className="bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-50 transition-colors"
       >
         <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0 flex items-center gap-1">

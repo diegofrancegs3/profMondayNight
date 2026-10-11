@@ -79,17 +79,15 @@ export default function Pitch({
     }
 
     // 2. GIOCATORE IN PANCHINA (Oltre il limite della formazione)
-    const benchIndex = index - maxPlayersInField; // 0 per l'8° giocatore, 1 per il 9°, ecc.
-    const clampedBenchIndex = Math.min(benchIndex, 4); // Max 5 riserve (indici 0..4)
+    const benchIndex = index - maxPlayersInField; 
+    const clampedBenchIndex = Math.min(benchIndex, 4);
 
     if (teamColor === 'white') {
-      // Bianchi: bordo sinistro (x=0%), dall'alto verso il basso
       return {
         x: 0,
         y: 8 + clampedBenchIndex * 12,
       };
     } else {
-      // Neri: bordo destro (x=100%), dal basso verso l'alto
       return {
         x: 100,
         y: 92 - clampedBenchIndex * 12,
@@ -97,7 +95,6 @@ export default function Pitch({
     }
   };
 
-  // Estrae i dati del giocatore selezionando avatar_url_w per i Bianchi e avatar_url_b per i Neri
   const getPlayerData = (item: any, teamColor: 'white' | 'black') => {
     if (!item) return { id: null, nickname: 'Giocatore', avatar_url: defaultAvatar, gol: 0, assist: 0 };
 
@@ -106,7 +103,6 @@ export default function Pitch({
     const id = playerObj.id || item.giocatore_id || item.id;
     const nickname = playerObj.nickname || item.nickname || 'Giocatore';
     
-    // Scelta dell'avatar specifico per la maglia di squadra (con fallback sull'avatar generico o default)
     const specificAvatar =
       teamColor === 'white'
         ? playerObj.avatar_url_w || item.avatar_url_w
@@ -230,7 +226,7 @@ export default function Pitch({
           />
         </div>
 
-        {/* SQUADRA BIANCA (In alto e a sinistra) */}
+        {/* SQUADRA BIANCA */}
         {whiteTeam.map((item, idx) => {
           const playerData = getPlayerData(item, 'white');
           const { id, nickname, avatar_url, gol, assist } = playerData;
@@ -254,7 +250,6 @@ export default function Pitch({
                 cursor: 'pointer',
               }}
             >
-              {/* PEDINA RETTANGOLARE / SCUDETTO */}
               <div
                 style={{
                   position: 'relative',
@@ -283,7 +278,6 @@ export default function Pitch({
                   }}
                 />
 
-                {/* BADGES STATISTICHE IN ALTO A DESTRA */}
                 {(gol > 0 || assist > 0) && (
                   <div
                     style={{
@@ -338,7 +332,6 @@ export default function Pitch({
                 )}
               </div>
 
-              {/* NICKNAME */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '0px' }}>
                 <span
                   style={{
@@ -360,7 +353,7 @@ export default function Pitch({
           );
         })}
 
-        {/* SQUADRA NERA (In basso e a destra) */}
+        {/* SQUADRA NERA */}
         {blackTeam.map((item, idx) => {
           const playerData = getPlayerData(item, 'black');
           const { id, nickname, avatar_url, gol, assist } = playerData;
@@ -384,7 +377,6 @@ export default function Pitch({
                 cursor: 'pointer',
               }}
             >
-              {/* PEDINA RETTANGOLARE / SCUDETTO */}
               <div
                 style={{
                   position: 'relative',
@@ -413,7 +405,6 @@ export default function Pitch({
                   }}
                 />
 
-                {/* BADGES STATISTICHE IN ALTO A DESTRA */}
                 {(gol > 0 || assist > 0) && (
                   <div
                     style={{
@@ -468,7 +459,6 @@ export default function Pitch({
                 )}
               </div>
 
-              {/* NICKNAME */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '0px' }}>
                 <span
                   style={{

@@ -68,22 +68,21 @@ export default function HomePage() {
     loadMatchData();
   }, [selectedMatchId]);
 
-  // 2. Carica l'elenco delle partite per il popup quando viene aperto
+  // 2. Carica sempre l'elenco aggiornato delle partite ogni volta che apri il popup
   const openMatchesModal = async () => {
     setIsModalOpen(true);
-    if (matchesList.length === 0) {
-      setLoadingList(true);
-      const data = await getMatchesList();
-      if (data) {
-        setMatchesList(data as Partita[]);
-      }
-      setLoadingList(false);
+    setLoadingList(true);
+    const data = await getMatchesList();
+    if (data) {
+      setMatchesList(data as Partita[]);
     }
+    setLoadingList(false);
   };
 
   const handleSelectMatch = (matchId: string) => {
     setIsModalOpen(false);
     router.push(`/?matchId=${matchId}`);
+    router.refresh(); // Pulisce la cache del router e forza il re-fetch dei dati freschi
   };
 
   const formatDate = (dateStr?: string, timeStr?: string) => {

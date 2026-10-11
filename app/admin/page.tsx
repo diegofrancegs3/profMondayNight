@@ -6,6 +6,7 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   getAdminInitialData, 
   createStagione, 
@@ -54,8 +55,8 @@ interface PartitaGiocatore {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const [session, setSession] = useState<boolean>(false);
-  const [authLoading, setAuthLoading] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -106,7 +107,7 @@ export default function AdminPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError(null);
-    if (passwordInput === 'forzamilan') { // Password configurabile per il circolo
+    if (passwordInput === 'forzamilan') {
       sessionStorage.setItem('admin_auth', 'true');
       setSession(true);
       loadBaseData();
@@ -161,6 +162,7 @@ export default function AdminPage() {
       setNuovaStagioneNome('');
       setIsCreatingStagione(false);
       setSelectedMatchId(null);
+      router.refresh(); // Pulisce la cache del router
       alert('Nuova stagione creata e selezionata!');
     } else {
       alert('Errore creazione stagione');
@@ -243,6 +245,7 @@ export default function AdminPage() {
 
     const data = await saveMatch(matchForm, selectedMatchId);
     if (data) {
+      router.refresh(); // Pulisce la cache del router dopo il salvataggio
       if (selectedMatchId === 'new') {
         setPartite([data, ...partite]);
         setSelectedMatchId(data.id);
@@ -273,6 +276,7 @@ export default function AdminPage() {
     if (!confirmDelete) return;
 
     await deleteMatch(selectedMatchId);
+    router.refresh(); // Pulisce la cache del router dopo l'eliminazione
     alert('Partita eliminata con successo!');
     setPartite(partite.filter((p) => p.id !== selectedMatchId));
     setSelectedMatchId(null);
@@ -323,6 +327,7 @@ export default function AdminPage() {
   async function handleSavePlayers() {
     if (!selectedMatchId || selectedMatchId === 'new') return;
     await saveMatchPlayers(selectedMatchId, matchPlayers);
+    router.refresh(); // Pulisce la cache del router dopo il salvataggio dei giocatori
     alert('Formazione e statistiche salvate con successo!');
     loadMatchPlayers(selectedMatchId);
   }
