@@ -81,8 +81,9 @@ export default function HomePage() {
 
   const handleSelectMatch = (matchId: string) => {
     setIsModalOpen(false);
-    router.push(`/?matchId=${matchId}`);
-    router.refresh(); // Pulisce la cache del router e forza il re-fetch dei dati freschi
+    // Aggiungiamo il parametro _r con timestamp per forzare il bypass della cache di Vercel
+    router.push(`/?matchId=${matchId}&_r=${Date.now()}`);
+    router.refresh(); 
   };
 
   const formatDate = (dateStr?: string, timeStr?: string) => {

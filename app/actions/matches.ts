@@ -1,4 +1,4 @@
-// app/actions/matches.ts (o lib/matches.ts a seconda di dove si trova)
+// app/actions/matches.ts
 'use server';
 
 import sql from '@/public/lib/db';
@@ -54,7 +54,6 @@ export async function getMatchData(selectedMatchId?: string | null) {
 
   if (!match) return { match: null, whiteTeam: [], blackTeam: [], whiteGoals: 0, blackGoals: 0 };
 
-  // Recupera i giocatori associati alla partita ordinati per posizione
   const matchPlayers = await sql`
     SELECT squadra, posizione, giocatore_id, gol, assist 
     FROM partite_giocatori 
@@ -66,7 +65,6 @@ export async function getMatchData(selectedMatchId?: string | null) {
 
   let playersData: any[] = [];
   if (playerIds.length > 0) {
-    // Recupera i dettagli anagrafici dei giocatori coinvolti
     playersData = await sql`
       SELECT id, nickname, avatar_url, avatar_url_w, avatar_url_b 
       FROM giocatori 
