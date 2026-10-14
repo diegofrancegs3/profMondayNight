@@ -254,7 +254,7 @@ export default function StatistichePage() {
               {teamStats.serie.length > 0 && (
                 <div className="pt-2 border-t border-slate-100 space-y-1.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                    Serie Risultati (Cronologica):
+                    Serie Risultati:
                   </span>
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                     {teamStats.serie.map((res, idx) => (

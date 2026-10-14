@@ -7,7 +7,7 @@ export const fetchCache = 'force-no-store';
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { getMatchData, getMatchesList } from '@/app/actions/matches';
+import { getMatchData, getMatchesList, getMatchEventsAdmin } from '@/app/actions/matches';
 import Pitch from '@/public/lib/components/Pitch';
 import { Clock, Calendar, ChevronRight, X } from 'lucide-react';
 
@@ -31,6 +31,13 @@ interface Partita {
   formazione_neri?: string;
 }
 
+interface EventoMarcatore {
+  orario: string;
+  squadra: 'bianchi' | 'neri';
+  marcatore_nickname: string;
+  assist_nickname?: string | null;
+}
+
 export default function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -43,6 +50,10 @@ export default function HomePage() {
   const [blackGoals, setBlackGoals] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Stato per i marcatori dettagliati
+  const [matchEvents, setMatchEvents] = useState<EventoMarcatore[]>([]);
+  const [showScorers, setShowScorers] = useState<boolean>(false);
+
   // Stato per il popup dell'elenco partite
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [matchesList, setMatchesList] = useState<Partita[]>([]);
@@ -51,7 +62,7 @@ export default function HomePage() {
   // Fallback locale per l'avatar
   const defaultAvatar = '/avatars/default.jpg';
 
-  // 1. Carica la partita selezionata o la più recente/prossima tramite Server Action (Neon)
+  // 1. Carica la partita selezionata e verifica gli eventi per il tabellino
   useEffect(() => {
     async function loadMatchData() {
       setLoading(true);
@@ -62,6 +73,27 @@ export default function HomePage() {
       setBlackTeam(res.blackTeam as Giocatore[]);
       setWhiteGoals(res.whiteGoals);
       setBlackGoals(res.blackGoals);
+
+      if (res.match?.id) {
+        const events = await getMatchEventsAdmin(res.match.id);
+        if (events && events.length > 0) {
+          const hasZeroTime = events.some((ev: any) => ev.orario === '00:00');
+          if (!hasZeroTime) {
+            setMatchEvents(events as EventoMarcatore[]);
+            setShowScorers(true);
+          } else {
+            setMatchEvents([]);
+            setShowScorers(false);
+          }
+        } else {
+          setMatchEvents([]);
+          setShowScorers(false);
+        }
+      } else {
+        setMatchEvents([]);
+        setShowScorers(false);
+      }
+
       setLoading(false);
     }
 
@@ -81,7 +113,6 @@ export default function HomePage() {
 
   const handleSelectMatch = (matchId: string) => {
     setIsModalOpen(false);
-    // Aggiungiamo il parametro _r con timestamp per forzare il bypass della cache di Vercel
     router.push(`/?matchId=${matchId}&_r=${Date.now()}`);
     router.refresh(); 
   };
@@ -125,7 +156,6 @@ export default function HomePage() {
         onClick={openMatchesModal}
         className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-50 transition-colors"
       >
-        {/* Badge Stato */}
         <span
           className={`text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border shrink-0 ${
             isPlayed
@@ -136,7 +166,6 @@ export default function HomePage() {
           {isPlayed ? 'Giocata' : 'Prossimo Match'}
         </span>
 
-        {/* Data e Ora */}
         <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
           <span className="flex items-center gap-1 capitalize">
             <Calendar size={13} className="text-slate-400" />
@@ -153,7 +182,7 @@ export default function HomePage() {
       </div>
 
       {/* TABELLONE FORMAZIONI + CAMPO PITCH */}
-      <div className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm space-y-0.5">
+      <div className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm space-y-1">
         {/* Intestazione Squadre */}
         <div className="flex justify-between items-center border-b border-slate-100 pb-1 px-0.5">
           <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
@@ -170,10 +199,55 @@ export default function HomePage() {
           )}
 
           <span className="text-slate-900 text-sm font-extrabold flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-slate-900 inline-block shadow-xs"></span>
             Neri <span className="text-xs font-normal text-slate-400">({match.formazione_neri || '1-2-1'})</span>
+            <span className="w-3 h-3 rounded-full bg-slate-900 inline-block shadow-xs"></span>
           </span>
         </div>
+
+        {/* Tabellino Marcatori Dettagliato (Marcatori vicini al minutaggio centrale) */}
+        {showScorers && matchEvents.length > 0 && (
+          <div className="py-1 px-1 border-b border-slate-100 text-[11px] space-y-0.5">
+            {matchEvents.map((ev, idx) => {
+              const minute = ev.orario ? ev.orario.split(':')[0] : '00';
+              const isWhite = ev.squadra === 'bianchi';
+
+              return (
+                <div key={idx} className="grid grid-cols-[1fr_auto_1fr] items-center font-medium gap-2">
+                  {/* Lato Sinistra (Bianchi): allineato a destra, vicino al centro */}
+                  <div className="text-right flex items-center justify-end">
+                    {isWhite && (
+                      <span className="text-slate-700">
+                        {ev.marcatore_nickname}
+                        {ev.assist_nickname && (
+                          <span className="text-slate-400 text-[10px]"> ({ev.assist_nickname})</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Centro (Minuto) */}
+                  <div className="text-center px-1">
+                    <span className="text-slate-400 text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded font-bold">
+                      {minute}'
+                    </span>
+                  </div>
+
+                  {/* Lato Destra (Neri): allineato a sinistra, vicino al centro */}
+                  <div className="text-left flex items-center justify-start">
+                    {!isWhite && (
+                      <span className="text-slate-700">
+                        {ev.marcatore_nickname}
+                        {ev.assist_nickname && (
+                          <span className="text-slate-400 text-[10px]"> ({ev.assist_nickname})</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <Pitch
           matchType={match.tipologia}
@@ -188,7 +262,6 @@ export default function HomePage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col shadow-xl overflow-hidden">
-            {/* Header Modal */}
             <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h3 className="font-bold text-slate-800 text-sm">Seleziona una partita</h3>
               <button
@@ -199,7 +272,6 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* Lista Partite a Scorrimento */}
             <div className="overflow-y-auto p-2 space-y-1 flex-1 divide-y divide-slate-100">
               {loadingList ? (
                 <div className="p-6 text-center text-xs text-slate-400">

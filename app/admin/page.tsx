@@ -14,9 +14,11 @@ import {
   saveMatch, 
   deleteMatch, 
   getMatchPlayersAdmin, 
-  saveMatchPlayers 
+  saveMatchPlayers,
+  getMatchEventsAdmin,
+  saveMatchEvents
 } from '@/app/actions/matches';
-import { Save, Plus, Trash2, Calendar, Users, Shield, LogOut, Lock, LayoutGrid, UserCheck } from 'lucide-react';
+import { Save, Plus, Trash2, Calendar, Users, Shield, LogOut, Lock, LayoutGrid, Clock } from 'lucide-react';
 import Pitch from '@/public/lib/components/Pitch';
 import { FORMATIONS, getFormationsForType, getDefaultFormationForType } from '@/public/lib/formations';
 
@@ -50,9 +52,16 @@ interface PartitaGiocatore {
   giocatore_id: string;
   squadra: 'bianchi' | 'neri';
   posizione: number;
-  gol: number;
-  assist: number;
   giocatori?: Giocatore;
+}
+
+interface PartitaEvento {
+  id?: number;
+  partita_id: string;
+  orario: string; // formato "mm:ss"
+  squadra: 'bianchi' | 'neri';
+  giocatore_id: string; // marcatore
+  assist_man_id?: string | null; // assist-man opzionale
 }
 
 export default function AdminPage() {
@@ -83,6 +92,7 @@ export default function AdminPage() {
   });
 
   const [matchPlayers, setMatchPlayers] = useState<PartitaGiocatore[]>([]);
+  const [matchEvents, setMatchEvents] = useState<PartitaEvento[]>([]);
 
   const formatDate = (dateStr?: string, timeStr?: string) => {
     if (!dateStr) return '';
@@ -188,7 +198,7 @@ export default function AdminPage() {
         formazione_neri: match.formazione_neri || '1-2-1',
         stato: match.stato || 'tbd',
       });
-      loadMatchPlayers(match.id);
+      loadMatchDetails(match.id);
     }
   }
 
@@ -204,6 +214,7 @@ export default function AdminPage() {
       stato: 'tbd',
     });
     setMatchPlayers([]);
+    setMatchEvents([]);
   }
 
   function handleTipologiaChange(newTipologia: string) {
@@ -226,10 +237,14 @@ export default function AdminPage() {
     });
   }
 
-  async function loadMatchPlayers(partitaId: string) {
-    const data = await getMatchPlayersAdmin(partitaId);
-    if (data) {
-      setMatchPlayers(data as PartitaGiocatore[]);
+  async function loadMatchDetails(partitaId: string) {
+    const playersData = await getMatchPlayersAdmin(partitaId);
+    if (playersData) {
+      setMatchPlayers(playersData as PartitaGiocatore[]);
+    }
+    const eventsData = await getMatchEventsAdmin(partitaId);
+    if (eventsData) {
+      setMatchEvents(eventsData as PartitaEvento[]);
     }
   }
 
@@ -250,7 +265,7 @@ export default function AdminPage() {
       if (selectedMatchId === 'new') {
         setPartite([data, ...partite]);
         setSelectedMatchId(data.id);
-        alert('Partita creata! Ora puoi assegnare i giocatori.');
+        alert('Partita creata! Ora puoi assegnare i giocatori e inserire gli eventi.');
       } else {
         setPartite(partite.map((p) => (p.id === selectedMatchId ? { ...p, ...matchForm } : p)));
         alert('Dati partita aggiornati!');
@@ -268,8 +283,8 @@ export default function AdminPage() {
       return;
     }
 
-    if (matchPlayers.length > 0) {
-      alert('Non puoi eliminare una partita a cui sono stati assegnati dei giocatori!');
+    if (matchPlayers.length > 0 || matchEvents.length > 0) {
+      alert('Non puoi eliminare una partita a cui sono stati assegnati giocatori o eventi!');
       return;
     }
 
@@ -282,6 +297,7 @@ export default function AdminPage() {
     setPartite(partite.filter((p) => p.id !== selectedMatchId));
     setSelectedMatchId(null);
     setMatchPlayers([]);
+    setMatchEvents([]);
   }
 
   function handleAddPlayerToMatch(squadra: 'bianchi' | 'neri') {
@@ -307,8 +323,6 @@ export default function AdminPage() {
       giocatore_id: available.id,
       squadra: squadra,
       posizione: Math.min(maxPos + 1, 11),
-      gol: 0,
-      assist: 0,
     };
 
     setMatchPlayers([...matchPlayers, newPlayer]);
@@ -329,8 +343,68 @@ export default function AdminPage() {
     if (!selectedMatchId || selectedMatchId === 'new') return;
     await saveMatchPlayers(selectedMatchId, matchPlayers);
     router.refresh();
-    alert('Formazione e statistiche salvate con successo!');
-    loadMatchPlayers(selectedMatchId);
+    alert('Rosa salvata con successo!');
+    loadMatchDetails(selectedMatchId);
+  }
+
+  // Gestione Eventi (Tabellino)
+  function handleAddEvent() {
+    if (selectedMatchId === 'new' || !selectedMatchId) {
+      alert('Salva prima la partita per poter inserire gli eventi!');
+      return;
+    }
+
+    const defaultSquadra = 'bianchi';
+    const firstPlayer = matchPlayers.find((mp) => mp.squadra === defaultSquadra)?.giocatore_id || giocatori[0]?.id || '';
+
+    const newEvent: PartitaEvento = {
+      partita_id: selectedMatchId,
+      orario: '00:00',
+      squadra: defaultSquadra,
+      giocatore_id: firstPlayer,
+      assist_man_id: null,
+    };
+
+    setMatchEvents([...matchEvents, newEvent]);
+  }
+
+  function handleUpdateEvent(index: number, field: keyof PartitaEvento, value: any) {
+    const updated = [...matchEvents];
+    updated[index] = { ...updated[index], [field]: value };
+    setMatchEvents(updated);
+  }
+
+  function handleUpdateEventTeam(index: number, newSquadra: 'bianchi' | 'neri') {
+    const updated = [...matchEvents];
+    const firstP = matchPlayers.find((mp) => mp.squadra === newSquadra)?.giocatore_id || '';
+    updated[index] = {
+      ...updated[index],
+      squadra: newSquadra,
+      giocatore_id: firstP,
+      assist_man_id: null,
+    };
+    setMatchEvents(updated);
+  }
+
+  function handleRemoveEvent(index: number) {
+    const updated = matchEvents.filter((_, i) => i !== index);
+    setMatchEvents(updated);
+  }
+
+  async function handleSaveEvents() {
+    if (!selectedMatchId || selectedMatchId === 'new') return;
+
+    for (const ev of matchEvents) {
+      if (!ev.giocatore_id) {
+        alert('Tutti i gol devono avere un marcatore selezionato!');
+        return;
+      }
+    }
+
+    await saveMatchEvents(selectedMatchId, matchEvents);
+    router.refresh();
+    alert('Tabellino salvato con successo!');
+    loadMatchDetails(selectedMatchId);
   }
 
   const filteredPartite = partite.filter((p) => p.stagione_id === selectedStagioneId);
@@ -356,7 +430,8 @@ export default function AdminPage() {
     selectedMatchId !== null &&
     selectedMatchId !== 'new' &&
     matchForm.stato === 'tbd' &&
-    matchPlayers.length === 0;
+    matchPlayers.length === 0 &&
+    matchEvents.length === 0;
 
   if (!session) {
     return (
@@ -406,6 +481,7 @@ export default function AdminPage() {
           <h1 className="font-bold text-sm tracking-wide">Pannello Admin Partite</h1>
         </div>
         <button
+          type="button"
           onClick={handleLogout}
           className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[11px]"
           title="Disconnetti"
@@ -441,6 +517,7 @@ export default function AdminPage() {
                   className="flex-1 border border-slate-300 rounded-lg px-2 py-1 text-xs focus:outline-none"
                 />
                 <button
+                  type="button"
                   onClick={handleCreateStagione}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1 text-[11px] shrink-0"
                 >
@@ -474,7 +551,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Pulsanti di navigazione/azione rapida (Lista Giocatori + Crea Nuova Partita) */}
         <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
           <Link
             href="/admin/giocatori"
@@ -484,6 +560,7 @@ export default function AdminPage() {
           </Link>
 
           <button
+            type="button"
             onClick={handleStartNewMatch}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
               selectedMatchId === 'new'
@@ -588,6 +665,7 @@ export default function AdminPage() {
 
             <div className="flex items-center gap-2 pt-1">
               <button
+                type="button"
                 onClick={handleSaveMatch}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-xs"
               >
@@ -597,6 +675,7 @@ export default function AdminPage() {
 
               {selectedMatchId !== 'new' && (
                 <button
+                  type="button"
                   onClick={handleDeleteMatch}
                   disabled={!canDeleteMatch}
                   className={`px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors shadow-xs ${
@@ -613,144 +692,229 @@ export default function AdminPage() {
           </div>
 
           {selectedMatchId !== 'new' && (
-            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between border-b pb-1.5">
-                <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <Users size={14} className="text-emerald-600" />
-                  <span>Convocati e Statistiche</span>
-                </span>
-                <button
-                  onClick={handleSavePlayers}
-                  className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1 rounded-lg font-semibold flex items-center gap-1 text-xs"
-                >
-                  <Save size={13} /> Salva Rosa
-                </button>
-              </div>
-
-              {(['bianchi', 'neri'] as const).map((squadra) => {
-                const teamPlayers = matchPlayers
-                  .map((p, originalIndex) => ({ ...p, originalIndex }))
-                  .filter((p) => p.squadra === squadra);
-
-                const isBianchi = squadra === 'bianchi';
-
-                return (
-                  <div
-                    key={squadra}
-                    className={`p-2.5 rounded-xl border ${
-                      isBianchi ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 text-white border-slate-800'
-                    }`}
+            <>
+              {/* Sezione Convocati (Solo Rose e Posizioni) */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between border-b pb-1.5">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <Users size={14} className="text-emerald-600" />
+                    <span>Convocati (Formazioni)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSavePlayers}
+                    className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1 rounded-lg font-semibold flex items-center gap-1 text-xs"
                   >
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-extrabold capitalize text-xs tracking-wide">Squadra {squadra}</span>
-                      <button
-                        onClick={() => handleAddPlayerToMatch(squadra)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 ${
-                          isBianchi
-                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
-                            : 'bg-slate-700 hover:bg-slate-600 text-white'
-                        }`}
-                      >
-                        <Plus size={12} /> Aggiungi Giocatore
-                      </button>
-                    </div>
+                    <Save size={13} /> Salva Rosa
+                  </button>
+                </div>
 
-                    <div className="space-y-1.5">
-                      {teamPlayers.length === 0 ? (
-                        <div className="text-[11px] opacity-50 italic">Nessun giocatore assegnato.</div>
-                      ) : (
-                        teamPlayers.map((item) => {
-                          const selectableGiocatori = giocatori.filter(
-                            (g) => !usedGiocatoriIds.has(g.id) || g.id === item.giocatore_id
-                          );
+                {(['bianchi', 'neri'] as const).map((squadra) => {
+                  const teamPlayers = matchPlayers
+                    .map((p, originalIndex) => ({ ...p, originalIndex }))
+                    .filter((p) => p.squadra === squadra);
 
-                          return (
-                            <div
-                              key={item.originalIndex}
-                              className={`flex items-center gap-1.5 p-1.5 rounded-lg border ${
-                                isBianchi ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-700'
-                              }`}
-                            >
-                              <select
-                                value={item.giocatore_id}
-                                onChange={(e) => handleUpdatePlayer(item.originalIndex, 'giocatore_id', e.target.value)}
-                                className={`flex-1 rounded p-1 text-xs font-semibold ${
-                                  isBianchi ? 'bg-slate-50 text-slate-800' : 'bg-slate-900 text-white border-slate-700'
+                  const isBianchi = squadra === 'bianchi';
+
+                  return (
+                    <div
+                      key={squadra}
+                      className={`p-2.5 rounded-xl border ${
+                        isBianchi ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 text-white border-slate-800'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-extrabold capitalize text-xs tracking-wide">Squadra {squadra}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddPlayerToMatch(squadra)}
+                          className={`px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 ${
+                            isBianchi
+                              ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                              : 'bg-slate-700 hover:bg-slate-600 text-white'
+                          }`}
+                        >
+                          <Plus size={12} /> Aggiungi Giocatore
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {teamPlayers.length === 0 ? (
+                          <div className="text-[11px] opacity-50 italic">Nessun giocatore assegnato.</div>
+                        ) : (
+                          teamPlayers.map((item) => {
+                            const selectableGiocatori = giocatori.filter(
+                              (g) => !usedGiocatoriIds.has(g.id) || g.id === item.giocatore_id
+                            );
+
+                            return (
+                              <div
+                                key={item.originalIndex}
+                                className={`flex items-center gap-1.5 p-1.5 rounded-lg border ${
+                                  isBianchi ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-700'
                                 }`}
                               >
-                                {selectableGiocatori.map((g) => (
+                                <select
+                                  value={item.giocatore_id}
+                                  onChange={(e) => handleUpdatePlayer(item.originalIndex, 'giocatore_id', e.target.value)}
+                                  className={`flex-1 rounded p-1 text-xs font-semibold ${
+                                    isBianchi ? 'bg-slate-50 text-slate-800' : 'bg-slate-900 text-white border-slate-700'
+                                  }`}
+                                >
+                                  {selectableGiocatori.map((g) => (
+                                    <option key={g.id} value={g.id}>
+                                      {g.nickname}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] opacity-70 font-medium">Pos:</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="11"
+                                    value={item.posizione}
+                                    onChange={(e) =>
+                                      handleUpdatePlayer(item.originalIndex, 'posizione', parseInt(e.target.value) || 1)
+                                    }
+                                    className={`w-10 p-1 text-center rounded text-xs font-bold ${
+                                      isBianchi ? 'border border-slate-200' : 'bg-slate-900 text-white border-slate-700'
+                                    }`}
+                                  />
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePlayer(item.originalIndex)}
+                                  className="p-1 text-red-500 hover:text-red-700 rounded ml-0.5"
+                                  title="Rimuovi giocatore"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Sezione Tabellino (Eventi Gol & Assist) */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between border-b pb-1.5 flex-nowrap gap-2">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5 shrink-0">
+                    <Clock size={14} className="text-amber-500" />
+                    <span>Tabellino</span>
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleAddEvent}
+                      className="bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded-lg font-semibold flex items-center gap-1 text-[11px]"
+                    >
+                      <Plus size={12} /> Aggiungi Gol
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveEvents}
+                      className="bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 text-[11px]"
+                    >
+                      <Save size={12} /> Salva Cronaca
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  {matchEvents.length === 0 ? (
+                    <div className="text-[11px] text-slate-400 italic py-2 text-center">Nessun gol registrato per questa partita.</div>
+                  ) : (
+                    matchEvents.map((ev, index) => {
+                      const teamPlayerIds = matchPlayers
+                        .filter((mp) => mp.squadra === ev.squadra)
+                        .map((mp) => mp.giocatore_id);
+                      
+                      const availableTeamPlayers = giocatori.filter((g) => teamPlayerIds.includes(g.id));
+
+                      return (
+                        <div key={index} className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200">
+                          {/* Orario mm:ss */}
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-slate-500">Min:</span>
+                            <input
+                              type="text"
+                              placeholder="00:00"
+                              value={ev.orario}
+                              onChange={(e) => handleUpdateEvent(index, 'orario', e.target.value)}
+                              className="w-14 p-1 text-center font-mono rounded border border-slate-300 text-xs font-bold bg-white"
+                            />
+                          </div>
+
+                          {/* Squadra */}
+                          <select
+                            value={ev.squadra}
+                            onChange={(e) => handleUpdateEventTeam(index, e.target.value as 'bianchi' | 'neri')}
+                            className="p-1 rounded border border-slate-300 text-xs font-bold bg-white capitalize"
+                          >
+                            <option value="bianchi">Bianchi</option>
+                            <option value="neri">Neri</option>
+                          </select>
+
+                          {/* Marcatore */}
+                          <div className="flex-1">
+                            <select
+                              value={ev.giocatore_id}
+                              onChange={(e) => handleUpdateEvent(index, 'giocatore_id', e.target.value)}
+                              className="w-full p-1 rounded border border-slate-300 text-xs font-semibold bg-white"
+                            >
+                              {availableTeamPlayers.length === 0 ? (
+                                <option value="">Nessun giocatore in rosa</option>
+                              ) : (
+                                availableTeamPlayers.map((g) => (
+                                  <option key={g.id} value={g.id}>
+                                    {g.nickname}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </div>
+
+                          {/* Assist-man */}
+                          <div className="flex-1">
+                            <select
+                              value={ev.assist_man_id || ''}
+                              onChange={(e) => handleUpdateEvent(index, 'assist_man_id', e.target.value || null)}
+                              className="w-full p-1 rounded border border-slate-300 text-xs font-semibold bg-white text-slate-600"
+                            >
+                              <option value="">-- Nessun Assist --</option>
+                              {availableTeamPlayers
+                                .filter((g) => g.id !== ev.giocatore_id)
+                                .map((g) => (
                                   <option key={g.id} value={g.id}>
                                     {g.nickname}
                                   </option>
                                 ))}
-                              </select>
+                            </select>
+                          </div>
 
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] opacity-70 font-medium">Pos:</span>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  max="11"
-                                  value={item.posizione}
-                                  onChange={(e) =>
-                                    handleUpdatePlayer(item.originalIndex, 'posizione', parseInt(e.target.value) || 1)
-                                  }
-                                  className={`w-10 p-1 text-center rounded text-xs font-bold ${
-                                    isBianchi ? 'border border-slate-200' : 'bg-slate-900 text-white border-slate-700'
-                                  }`}
-                                />
-                              </div>
-
-                              {matchForm.stato === 'giocata' && (
-                                <>
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-bold text-emerald-500">G:</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={item.gol}
-                                      onChange={(e) =>
-                                        handleUpdatePlayer(item.originalIndex, 'gol', parseInt(e.target.value) || 0)
-                                      }
-                                      className={`w-9 p-1 text-center rounded text-xs font-bold ${
-                                        isBianchi ? 'border border-slate-200' : 'bg-slate-900 text-white border-slate-700'
-                                      }`}
-                                    />
-                                  </div>
-
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-bold text-blue-500">A:</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={item.assist}
-                                      onChange={(e) =>
-                                        handleUpdatePlayer(item.originalIndex, 'assist', parseInt(e.target.value) || 0)
-                                      }
-                                      className={`w-9 p-1 text-center rounded text-xs font-bold ${
-                                        isBianchi ? 'border border-slate-200' : 'bg-slate-900 text-white border-slate-700'
-                                      }`}
-                                    />
-                                  </div>
-                                </>
-                              )}
-
-                              <button
-                                onClick={() => handleRemovePlayer(item.originalIndex)}
-                                className="p-1 text-red-500 hover:text-red-700 rounded ml-0.5"
-                                title="Rimuovi giocatore"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                          {/* Elimina Evento */}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEvent(index)}
+                            className="p-1 text-red-500 hover:text-red-700 rounded"
+                            title="Elimina evento"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
           <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">

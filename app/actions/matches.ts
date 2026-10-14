@@ -55,11 +55,33 @@ export async function getMatchData(selectedMatchId?: string | null) {
   if (!match) return { match: null, whiteTeam: [], blackTeam: [], whiteGoals: 0, blackGoals: 0 };
 
   const matchPlayers = await sql`
-    SELECT squadra, posizione, giocatore_id, gol, assist 
+    SELECT squadra, posizione, giocatore_id 
     FROM partite_giocatori 
     WHERE partita_id = ${match.id}
     ORDER BY posizione ASC
   `;
+
+  // Leggi gli eventi della partita per calcolare gol e assist dinamici
+  const matchEvents = await sql`
+    SELECT squadra, giocatore_id, assist_man_id 
+    FROM partita_eventi 
+    WHERE partita_id = ${match.id}
+  `;
+
+  const whiteGoals = matchEvents.filter((ev) => ev.squadra === 'bianchi').length;
+  const blackGoals = matchEvents.filter((ev) => ev.squadra === 'neri').length;
+
+  const playerGoalsCount = new Map<string, number>();
+  const playerAssistsCount = new Map<string, number>();
+
+  matchEvents.forEach((ev) => {
+    if (ev.giocatore_id) {
+      playerGoalsCount.set(ev.giocatore_id, (playerGoalsCount.get(ev.giocatore_id) || 0) + 1);
+    }
+    if (ev.assist_man_id) {
+      playerAssistsCount.set(ev.assist_man_id, (playerAssistsCount.get(ev.assist_man_id) || 0) + 1);
+    }
+  });
 
   const playerIds = matchPlayers.map((mp) => mp.giocatore_id);
 
@@ -81,16 +103,13 @@ export async function getMatchData(selectedMatchId?: string | null) {
     return {
       ...base,
       avatar_url: base.avatar_url || defaultAvatar,
-      gol: mp.gol || 0,
-      assist: mp.assist || 0,
+      gol: playerGoalsCount.get(mp.giocatore_id) || 0,
+      assist: playerAssistsCount.get(mp.giocatore_id) || 0,
     };
   };
 
   const whiteTeam = matchPlayers.filter((mp) => mp.squadra === 'bianchi').map(mapPlayerWithStats).filter(Boolean);
   const blackTeam = matchPlayers.filter((mp) => mp.squadra === 'neri').map(mapPlayerWithStats).filter(Boolean);
-
-  const whiteGoals = matchPlayers.filter((mp) => mp.squadra === 'bianchi').reduce((acc, mp) => acc + (mp.gol || 0), 0);
-  const blackGoals = matchPlayers.filter((mp) => mp.squadra === 'neri').reduce((acc, mp) => acc + (mp.gol || 0), 0);
 
   return {
     match,
@@ -132,32 +151,49 @@ export async function getPlayerStats(giocatoreId: string, stagioneId?: string | 
     return { gol: 0, assist: 0, presenze: 0 };
   }
 
-  let matchStats;
+  // Presenze
+  let matchPlayers;
   if (filtroSquadra && filtroSquadra !== 'tutto') {
-    matchStats = await sql`
-      SELECT gol, assist, squadra 
+    matchPlayers = await sql`
+      SELECT squadra 
       FROM partite_giocatori 
       WHERE giocatore_id = ${giocatoreId} 
         AND partita_id = ANY(${partitaIds}) 
         AND squadra = ${filtroSquadra}
     `;
   } else {
-    matchStats = await sql`
-      SELECT gol, assist, squadra 
+    matchPlayers = await sql`
+      SELECT squadra 
       FROM partite_giocatori 
       WHERE giocatore_id = ${giocatoreId} 
         AND partita_id = ANY(${partitaIds})
     `;
   }
 
-  if (matchStats && matchStats.length > 0) {
-    const presenze = matchStats.length;
-    const gol = matchStats.reduce((acc, item) => acc + (item.gol || 0), 0);
-    const assist = matchStats.reduce((acc, item) => acc + (item.assist || 0), 0);
-    return { gol, assist, presenze };
+  const presenze = matchPlayers ? matchPlayers.length : 0;
+
+  // Gol e assist da partita_eventi
+  const golEvents = await sql`
+    SELECT squadra FROM partita_eventi 
+    WHERE giocatore_id = ${giocatoreId} AND partita_id = ANY(${partitaIds})
+  `;
+  const assistEvents = await sql`
+    SELECT squadra FROM partita_eventi 
+    WHERE assist_man_id = ${giocatoreId} AND partita_id = ANY(${partitaIds})
+  `;
+
+  let gol = 0;
+  let assist = 0;
+
+  if (filtroSquadra && filtroSquadra !== 'tutto') {
+    gol = golEvents.filter((e) => e.squadra === filtroSquadra).length;
+    assist = assistEvents.filter((e) => e.squadra === filtroSquadra).length;
+  } else {
+    gol = golEvents.length;
+    assist = assistEvents.length;
   }
 
-  return { gol: 0, assist: 0, presenze: 0 };
+  return { gol, assist, presenze };
 }
 
 export async function getSeasonsList(): Promise<Stagione[]> {
@@ -184,9 +220,9 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
     };
   }
 
-  const matchPlayers = await sql`
-    SELECT partita_id, giocatore_id, squadra, gol, assist 
-    FROM partite_giocatori 
+  const matchEvents = await sql`
+    SELECT partita_id, giocatore_id, assist_man_id, squadra 
+    FROM partita_eventi 
     WHERE partita_id = ANY(${partitaIds})
   `;
 
@@ -196,9 +232,9 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
   const serieResult: ('B' | 'N' | 'P')[] = [];
 
   partite.forEach((p) => {
-    const pPlayers = matchPlayers.filter((mp) => mp.partita_id === p.id);
-    const golBianchi = pPlayers.filter((mp) => mp.squadra === 'bianchi').reduce((acc, curr) => acc + (curr.gol || 0), 0);
-    const golNeri = pPlayers.filter((mp) => mp.squadra === 'neri').reduce((acc, curr) => acc + (curr.gol || 0), 0);
+    const pEvents = matchEvents.filter((ev) => ev.partita_id === p.id);
+    const golBianchi = pEvents.filter((ev) => ev.squadra === 'bianchi').length;
+    const golNeri = pEvents.filter((ev) => ev.squadra === 'neri').length;
 
     if (golBianchi > golNeri) {
       vBianchi++;
@@ -225,24 +261,33 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
   }
 
   const statsMap = new Map<string, number>();
-  const filteredMatchPlayers = matchPlayers.filter((mp) => {
-    if (filtroSquadra === 'tutto') return true;
-    return mp.squadra === filtroSquadra;
-  });
 
-  filteredMatchPlayers.forEach((mp) => {
-    const id = mp.giocatore_id;
-    if (!id) return;
+  if (tipo === 'presenze') {
+    const matchPlayers = await sql`
+      SELECT giocatore_id, squadra 
+      FROM partite_giocatori 
+      WHERE partita_id = ANY(${partitaIds})
+    `;
+    const filteredMatchPlayers = matchPlayers.filter((mp) => {
+      if (filtroSquadra === 'tutto') return true;
+      return mp.squadra === filtroSquadra;
+    });
 
-    const currentVal = statsMap.get(id) || 0;
-    if (tipo === 'gol') {
-      statsMap.set(id, currentVal + (mp.gol || 0));
-    } else if (tipo === 'assist') {
-      statsMap.set(id, currentVal + (mp.assist || 0));
-    } else if (tipo === 'presenze') {
-      statsMap.set(id, currentVal + 1);
-    }
-  });
+    filteredMatchPlayers.forEach((mp) => {
+      if (!mp.giocatore_id) return;
+      statsMap.set(mp.giocatore_id, (statsMap.get(mp.giocatore_id) || 0) + 1);
+    });
+  } else {
+    matchEvents.forEach((ev) => {
+      if (filtroSquadra !== 'tutto' && ev.squadra !== filtroSquadra) return;
+
+      if (tipo === 'gol' && ev.giocatore_id) {
+        statsMap.set(ev.giocatore_id, (statsMap.get(ev.giocatore_id) || 0) + 1);
+      } else if (tipo === 'assist' && ev.assist_man_id) {
+        statsMap.set(ev.assist_man_id, (statsMap.get(ev.assist_man_id) || 0) + 1);
+      }
+    });
+  }
 
   const playerIds = Array.from(statsMap.keys()).filter((id) => (statsMap.get(id) || 0) > 0);
 
@@ -273,7 +318,12 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
         valore: statsMap.get(p.id) || 0,
       };
     })
-    .sort((a, b) => b.valore - a.valore)
+    .sort((a, b) => {
+      if (b.valore !== a.valore) {
+        return b.valore - a.valore;
+      }
+      return a.nickname.localeCompare(b.nickname);
+    })
     .slice(0, 10);
 
   return { classifica, teamStats };
@@ -335,7 +385,7 @@ export async function deleteMatch(matchId: string) {
 
 export async function getMatchPlayersAdmin(partitaId: string) {
   const players = await sql`
-    SELECT pg.*, g.id as g_id, g.nickname, g.avatar_url, g.avatar_url_w, g.avatar_url_b
+    SELECT pg.squadra, pg.posizione, pg.giocatore_id, g.id as g_id, g.nickname, g.avatar_url, g.avatar_url_w, g.avatar_url_b
     FROM partite_giocatori pg
     JOIN giocatori g ON pg.giocatore_id = g.id
     WHERE pg.partita_id = ${partitaId}
@@ -358,15 +408,45 @@ export async function saveMatchPlayers(partitaId: string, matchPlayers: any[]) {
 
   for (const item of matchPlayers) {
     await sql`
-      INSERT INTO partite_giocatori (partita_id, giocatore_id, squadra, posizione, gol, assist)
-      VALUES (${partitaId}, ${item.giocatore_id}, ${item.squadra}, ${Number(item.posizione) || 1}, ${Number(item.gol) || 0}, ${Number(item.assist) || 0})
+      INSERT INTO partite_giocatori (partita_id, giocatore_id, squadra, posizione)
+      VALUES (${partitaId}, ${item.giocatore_id}, ${item.squadra}, ${Number(item.posizione) || 1})
     `;
   }
   return true;
 }
 
 // ==========================================
-// SEZIONE AGGIUNTIVA: GESTIONE GIOCATORI
+// SEZIONE EVENTI PARTITA (CRONACA / TIMELINE)
+// ==========================================
+
+export async function getMatchEventsAdmin(partitaId: string) {
+  const events = await sql`
+    SELECT pe.*, 
+           g.nickname as marcatore_nickname, 
+           am.nickname as assist_nickname
+    FROM partita_eventi pe
+    JOIN giocatori g ON pe.giocatore_id = g.id
+    LEFT JOIN giocatori am ON pe.assist_man_id = am.id
+    WHERE pe.partita_id = ${partitaId}
+    ORDER BY pe.orario ASC
+  `;
+  return events;
+}
+
+export async function saveMatchEvents(partitaId: string, events: any[]) {
+  await sql`DELETE FROM partita_eventi WHERE partita_id = ${partitaId}`;
+
+  for (const ev of events) {
+    await sql`
+      INSERT INTO partita_eventi (partita_id, orario, squadra, giocatore_id, assist_man_id)
+      VALUES (${partitaId}, ${ev.orario}, ${ev.squadra}, ${ev.giocatore_id}, ${ev.assist_man_id || null})
+    `;
+  }
+  return true;
+}
+
+// ==========================================
+// SEZIONE GESTIONE GIOCATORI
 // ==========================================
 
 export interface Giocatore {
