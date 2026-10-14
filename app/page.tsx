@@ -59,9 +59,6 @@ export default function HomePage() {
   const [matchesList, setMatchesList] = useState<Partita[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(false);
 
-  // Fallback locale per l'avatar
-  const defaultAvatar = '/avatars/default.jpg';
-
   // 1. Carica la partita selezionata e verifica gli eventi per il tabellino
   useEffect(() => {
     async function loadMatchData() {
@@ -204,7 +201,7 @@ export default function HomePage() {
           </span>
         </div>
 
-        {/* Tabellino Marcatori Dettagliato (Marcatori vicini al minutaggio centrale) */}
+        {/* Tabellino Marcatori Dettagliato */}
         {showScorers && matchEvents.length > 0 && (
           <div className="py-1 px-1 border-b border-slate-100 text-[11px] space-y-0.5">
             {matchEvents.map((ev, idx) => {
@@ -213,7 +210,7 @@ export default function HomePage() {
 
               return (
                 <div key={idx} className="grid grid-cols-[1fr_auto_1fr] items-center font-medium gap-2">
-                  {/* Lato Sinistra (Bianchi): allineato a destra, vicino al centro */}
+                  {/* Lato Sinistra (Bianchi) */}
                   <div className="text-right flex items-center justify-end">
                     {isWhite && (
                       <span className="text-slate-700">
@@ -228,11 +225,11 @@ export default function HomePage() {
                   {/* Centro (Minuto) */}
                   <div className="text-center px-1">
                     <span className="text-slate-400 text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded font-bold">
-                      {minute}'
+                      {minute}&apos;
                     </span>
                   </div>
 
-                  {/* Lato Destra (Neri): allineato a sinistra, vicino al centro */}
+                  {/* Lato Destra (Neri) */}
                   <div className="text-left flex items-center justify-start">
                     {!isWhite && (
                       <span className="text-slate-700">
