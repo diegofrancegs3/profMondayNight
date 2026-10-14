@@ -364,3 +364,69 @@ export async function saveMatchPlayers(partitaId: string, matchPlayers: any[]) {
   }
   return true;
 }
+
+// ==========================================
+// SEZIONE AGGIUNTIVA: GESTIONE GIOCATORI
+// ==========================================
+
+export interface Giocatore {
+  id: string;
+  nickname: string;
+  avatar_url: string;
+  avatar_url_w?: string | null;
+  avatar_url_b?: string | null;
+}
+
+export async function getPlayersList(): Promise<Giocatore[]> {
+  const players = await sql`
+    SELECT id, nickname, avatar_url, avatar_url_w, avatar_url_b 
+    FROM giocatori 
+    ORDER BY nickname ASC
+  `;
+  return players as Giocatore[];
+}
+
+export async function createPlayer(data: {
+  nickname: string;
+  avatar_url?: string;
+  avatar_url_w?: string;
+  avatar_url_b?: string;
+}) {
+  const defaultAvatar = '/avatars/default.jpg';
+  
+  const result = await sql`
+    INSERT INTO giocatori (nickname, avatar_url, avatar_url_w, avatar_url_b)
+    VALUES (
+      ${data.nickname}, 
+      ${data.avatar_url || defaultAvatar}, 
+      ${data.avatar_url_w || null}, 
+      ${data.avatar_url_b || null}
+    )
+    RETURNING id, nickname, avatar_url, avatar_url_w, avatar_url_b
+  `;
+  return result[0] as Giocatore;
+}
+
+export async function updatePlayer(
+  id: string,
+  data: {
+    nickname: string;
+    avatar_url?: string;
+    avatar_url_w?: string;
+    avatar_url_b?: string;
+  }
+) {
+  const defaultAvatar = '/avatars/default.jpg';
+
+  const result = await sql`
+    UPDATE giocatori
+    SET 
+      nickname = ${data.nickname},
+      avatar_url = ${data.avatar_url || defaultAvatar},
+      avatar_url_w = ${data.avatar_url_w || null},
+      avatar_url_b = ${data.avatar_url_b || null}
+    WHERE id = ${id}
+    RETURNING id, nickname, avatar_url, avatar_url_w, avatar_url_b
+  `;
+  return result[0] as Giocatore;
+}

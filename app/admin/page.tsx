@@ -7,6 +7,7 @@ export const fetchCache = 'force-no-store';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   getAdminInitialData, 
   createStagione, 
@@ -15,7 +16,7 @@ import {
   getMatchPlayersAdmin, 
   saveMatchPlayers 
 } from '@/app/actions/matches';
-import { Save, Plus, Trash2, Calendar, Users, Shield, LogOut, Lock, LayoutGrid } from 'lucide-react';
+import { Save, Plus, Trash2, Calendar, Users, Shield, LogOut, Lock, LayoutGrid, UserCheck } from 'lucide-react';
 import Pitch from '@/public/lib/components/Pitch';
 import { FORMATIONS, getFormationsForType, getDefaultFormationForType } from '@/public/lib/formations';
 
@@ -162,7 +163,7 @@ export default function AdminPage() {
       setNuovaStagioneNome('');
       setIsCreatingStagione(false);
       setSelectedMatchId(null);
-      router.refresh(); // Pulisce la cache del router
+      router.refresh();
       alert('Nuova stagione creata e selezionata!');
     } else {
       alert('Errore creazione stagione');
@@ -245,7 +246,7 @@ export default function AdminPage() {
 
     const data = await saveMatch(matchForm, selectedMatchId);
     if (data) {
-      router.refresh(); // Pulisce la cache del router dopo il salvataggio
+      router.refresh();
       if (selectedMatchId === 'new') {
         setPartite([data, ...partite]);
         setSelectedMatchId(data.id);
@@ -276,7 +277,7 @@ export default function AdminPage() {
     if (!confirmDelete) return;
 
     await deleteMatch(selectedMatchId);
-    router.refresh(); // Pulisce la cache del router dopo l'eliminazione
+    router.refresh();
     alert('Partita eliminata con successo!');
     setPartite(partite.filter((p) => p.id !== selectedMatchId));
     setSelectedMatchId(null);
@@ -327,7 +328,7 @@ export default function AdminPage() {
   async function handleSavePlayers() {
     if (!selectedMatchId || selectedMatchId === 'new') return;
     await saveMatchPlayers(selectedMatchId, matchPlayers);
-    router.refresh(); // Pulisce la cache del router dopo il salvataggio dei giocatori
+    router.refresh();
     alert('Formazione e statistiche salvate con successo!');
     loadMatchPlayers(selectedMatchId);
   }
@@ -473,7 +474,15 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="pt-1 border-t border-slate-100 flex justify-end">
+        {/* Pulsanti di navigazione/azione rapida (Lista Giocatori + Crea Nuova Partita) */}
+        <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
+          <Link
+            href="/admin/giocatori"
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 flex items-center gap-1.5 transition-colors"
+          >
+            <Users size={14} /> Lista Giocatori
+          </Link>
+
           <button
             onClick={handleStartNewMatch}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${

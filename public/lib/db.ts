@@ -6,9 +6,12 @@ if (!ENV.NEON_DATABASE_URL) {
   throw new Error('La NEON_DATABASE_URL non è definita nel file env.config.js');
 }
 
-// Inizializza il client SQL di Neon forzando il no-store per bypassare la cache di Vercel
-const sql = neon(ENV.NEON_DATABASE_URL, {
-  fetchOptions: { cache: 'no-store' },
-});
+// Verifica se siamo in ambiente di produzione (es. Vercel)
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Inizializza il client SQL: attiva il fetchOptions solo su Vercel per evitare il blocco in locale
+const sql = isProduction
+  ? neon(ENV.NEON_DATABASE_URL, { fetchOptions: { cache: 'no-store' } })
+  : neon(ENV.NEON_DATABASE_URL);
 
 export default sql;
