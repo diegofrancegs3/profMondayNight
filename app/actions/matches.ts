@@ -474,9 +474,31 @@ export async function createPlayer(data: {
 }) {
   const defaultAvatar = '/avatars/default.jpg';
   
+  // 1. Trova l'ultimo ID inserito nel formato "giocatore_XXXX" per calcolare il successivo
+  const lastPlayer = await sql`
+    SELECT id FROM giocatori 
+    WHERE id LIKE 'giocatore_%' 
+    ORDER BY id DESC 
+    LIMIT 1
+  `;
+
+  let nextNumber = 1;
+  if (lastPlayer.length > 0) {
+    const lastId = lastPlayer[0].id; // es. "giocatore_0005"
+    const parts = lastId.split('_');
+    if (parts[1]) {
+      nextNumber = parseInt(parts[1], 10) + 1;
+    }
+  }
+
+  // 2. Genera il nuovo ID con formato a 4 cifre (es. "giocatore_0006")
+  const newId = `giocatore_${String(nextNumber).padStart(4, '0')}`;
+
+  // 3. Inserimento esplicito del nuovo ID generato
   const result = await sql`
-    INSERT INTO giocatori (nickname, avatar_url, avatar_url_w, avatar_url_b)
+    INSERT INTO giocatori (id, nickname, avatar_url, avatar_url_w, avatar_url_b)
     VALUES (
+      ${newId},
       ${data.nickname}, 
       ${data.avatar_url || defaultAvatar}, 
       ${data.avatar_url_w || null}, 
