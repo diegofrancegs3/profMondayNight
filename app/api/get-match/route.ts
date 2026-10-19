@@ -73,42 +73,40 @@ export async function GET(request: Request) {
     let playersData: any[] = [];
     if (playerIds.length > 0) {
       playersData = await sql`
-        SELECT id, nickname, avatar_url, avatar_url_w, avatar_url_b 
+        SELECT id, nickname 
         FROM giocatori 
         WHERE id = ANY(${playerIds})
       `;
     }
 
-    const playersMap = new Map(playersData.map((p: any) => [p.id, p]));
-    const defaultAvatar = '/avatars/default.jpg';
-
-    const mapPlayer = (mp: any) => {
-      const base = playersMap.get(mp.giocatore_id);
-      if (!base) return null;
-      return {
-        id: base.id,
-        nickname: base.nickname,
-        avatar_url: base.avatar_url || defaultAvatar,
-        posizione: mp.posizione,
-      };
-    };
+    const playersMap = new Map(playersData.map((p: any) => [p.id, p.nickname]));
 
     const rosa_bianchi = matchPlayers
       .filter((mp: any) => mp.squadra === 'bianchi')
-      .map(mapPlayer)
+      .map((mp: any) => playersMap.get(mp.giocatore_id))
       .filter(Boolean);
 
     const rosa_neri = matchPlayers
       .filter((mp: any) => mp.squadra === 'neri')
-      .map(mapPlayer)
+      .map((mp: any) => playersMap.get(mp.giocatore_id))
       .filter(Boolean);
 
-    // 4. Restituisci il JSON pulito per l'app Wear OS
+    // 4. Recupera l'elenco globale di tutti i giocatori disponibili (solo nickname)
+    const allGiocatori = await sql`
+      SELECT nickname 
+      FROM giocatori 
+      ORDER BY nickname ASC
+    `;
+
+    const tutti_giocatori = allGiocatori.map((g: any) => g.nickname);
+
+    // 5. Restituisci il JSON essenziale per l'app Wear OS
     return NextResponse.json({
       match_id: match.id,
       match_info: match,
       rosa_bianchi,
       rosa_neri,
+      tutti_giocatori,
     });
 
   } catch (error) {
