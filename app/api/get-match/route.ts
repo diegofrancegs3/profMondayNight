@@ -1,7 +1,7 @@
 // app/api/get-match/route.ts
 import { NextResponse } from 'next/server';
 import sql from '@/public/lib/db';
-import { ENV } from '@/env.config';
+import { ENV } from '@/public/lib/env.config';
 
 interface PartitaRow {
   id: string;
@@ -15,7 +15,7 @@ interface PartitaRow {
 }
 
 export async function GET(request: Request) {
-  // 1. Controllo di sicurezza tramite Token / API Key da env.config.js
+  // 1. Controllo di sicurezza tramite Token / Key presa da public/lib/env.config.js
   const apiKey = request.headers.get('x-api-key');
   const secretKey = ENV?.WEAR_OS_API_KEY;
 
