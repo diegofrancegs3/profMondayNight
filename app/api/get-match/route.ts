@@ -28,24 +28,24 @@ export async function GET(request: Request) {
     let currentMatch: PartitaRow | null = null;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const upcoming = await sql<PartitaRow[]>`
+    const upcoming = (await sql`
       SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
       FROM partite 
       WHERE stato IN ('programmata', 'giocata') AND data >= ${todayStr}
       ORDER BY data ASC, time ASC 
       LIMIT 1
-    `;
+    `) as PartitaRow[];
 
     if (upcoming.length > 0) {
       currentMatch = upcoming[0];
     } else {
-      const lastMatch = await sql<PartitaRow[]>`
+      const lastMatch = (await sql`
         SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
         FROM partite 
         WHERE stato IN ('programmata', 'giocata')
         ORDER BY data DESC, time DESC 
         LIMIT 1
-      `;
+      `) as PartitaRow[];
       currentMatch = lastMatch[0] || null;
     }
 
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Nessuna partita trovata' }, { status: 404 });
     }
 
-    // Pulisci le date/orari mantenendo la tipizzazione esplicita
+    // Pulisci le date/orari
     const match = {
       ...currentMatch,
       data: currentMatch.data ? String(currentMatch.data).split('T')[0] : null,
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
       ORDER BY posizione ASC
     `;
 
-    const playerIds = matchPlayers.map((mp) => mp.giocatore_id);
+    const playerIds = matchPlayers.map((mp: any) => mp.giocatore_id);
 
     let playersData: any[] = [];
     if (playerIds.length > 0) {
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
       `;
     }
 
-    const playersMap = new Map(playersData.map((p) => [p.id, p]));
+    const playersMap = new Map(playersData.map((p: any) => [p.id, p]));
     const defaultAvatar = '/avatars/default.jpg';
 
     const mapPlayer = (mp: any) => {
@@ -94,12 +94,12 @@ export async function GET(request: Request) {
     };
 
     const rosa_bianchi = matchPlayers
-      .filter((mp) => mp.squadra === 'bianchi')
+      .filter((mp: any) => mp.squadra === 'bianchi')
       .map(mapPlayer)
       .filter(Boolean);
 
     const rosa_neri = matchPlayers
-      .filter((mp) => mp.squadra === 'neri')
+      .filter((mp: any) => mp.squadra === 'neri')
       .map(mapPlayer)
       .filter(Boolean);
 
