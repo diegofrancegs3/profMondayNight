@@ -1,22 +1,34 @@
 // app/api/get-match/route.ts
 import { NextResponse } from 'next/server';
 import sql from '@/public/lib/db';
+import { ENV } from '@/env.config';
+
+interface PartitaRow {
+  id: string;
+  stagione_id: string;
+  data: string;
+  time: string;
+  tipologia: string;
+  formazione_bianchi: string;
+  formazione_neri: string;
+  stato: string;
+}
 
 export async function GET(request: Request) {
-  // 1. Controllo di sicurezza tramite Token / API Key (senza fallback)
+  // 1. Controllo di sicurezza tramite Token / API Key da env.config.js
   const apiKey = request.headers.get('x-api-key');
-  const secretKey = process.env.WEAR_OS_API_KEY;
+  const secretKey = ENV?.WEAR_OS_API_KEY;
 
   if (!secretKey || !apiKey || apiKey !== secretKey) {
     return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
   }
 
   try {
-    // 2. Recupera la partita attiva o la prossima partita (stessa logica di getMatchData)
-    let currentMatch = null;
+    // 2. Recupera la partita attiva o la prossima partita
+    let currentMatch: PartitaRow | null = null;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const upcoming = await sql`
+    const upcoming = await sql<PartitaRow[]>`
       SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
       FROM partite 
       WHERE stato IN ('programmata', 'giocata') AND data >= ${todayStr}
@@ -27,7 +39,7 @@ export async function GET(request: Request) {
     if (upcoming.length > 0) {
       currentMatch = upcoming[0];
     } else {
-      const lastMatch = await sql`
+      const lastMatch = await sql<PartitaRow[]>`
         SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
         FROM partite 
         WHERE stato IN ('programmata', 'giocata')
@@ -41,7 +53,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Nessuna partita trovata' }, { status: 404 });
     }
 
-    // Pulisci le date/orari
+    // Pulisci le date/orari mantenendo la tipizzazione esplicita
     const match = {
       ...currentMatch,
       data: currentMatch.data ? String(currentMatch.data).split('T')[0] : null,
@@ -91,7 +103,7 @@ export async function GET(request: Request) {
       .map(mapPlayer)
       .filter(Boolean);
 
-    // 4. Restituisci il JSON pulito per la tua app Wear OS
+    // 4. Restituisci il JSON pulito per l'app Wear OS
     return NextResponse.json({
       match_id: match.id,
       match_info: match,
