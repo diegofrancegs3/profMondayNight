@@ -63,7 +63,7 @@ export async function getMatchData(selectedMatchId?: string | null) {
 
   // Leggi gli eventi della partita per calcolare gol e assist dinamici
   const matchEvents = await sql`
-    SELECT squadra, giocatore_id, assist_man_id 
+    SELECT squadra, giocatore_id, assist_man_id, is_autogol 
     FROM partita_eventi 
     WHERE partita_id = ${match.id}
   `;
@@ -75,7 +75,8 @@ export async function getMatchData(selectedMatchId?: string | null) {
   const playerAssistsCount = new Map<string, number>();
 
   matchEvents.forEach((ev) => {
-    if (ev.giocatore_id) {
+    // Gli autogol non contano per i gol personali del giocatore
+    if (ev.giocatore_id && !ev.is_autogol) {
       playerGoalsCount.set(ev.giocatore_id, (playerGoalsCount.get(ev.giocatore_id) || 0) + 1);
     }
     if (ev.assist_man_id) {
@@ -172,10 +173,10 @@ export async function getPlayerStats(giocatoreId: string, stagioneId?: string | 
 
   const presenze = matchPlayers ? matchPlayers.length : 0;
 
-  // Gol e assist da partita_eventi
+  // Gol (escludendo gli autogol) e assist da partita_eventi
   const golEvents = await sql`
     SELECT squadra FROM partita_eventi 
-    WHERE giocatore_id = ${giocatoreId} AND partita_id = ANY(${partitaIds})
+    WHERE giocatore_id = ${giocatoreId} AND partita_id = ANY(${partitaIds}) AND (is_autogol IS NOT TRUE)
   `;
   const assistEvents = await sql`
     SELECT squadra FROM partita_eventi 
@@ -221,7 +222,7 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
   }
 
   const matchEvents = await sql`
-    SELECT partita_id, giocatore_id, assist_man_id, squadra 
+    SELECT partita_id, giocatore_id, assist_man_id, squadra, is_autogol 
     FROM partita_eventi 
     WHERE partita_id = ANY(${partitaIds})
   `;
@@ -281,7 +282,8 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
     matchEvents.forEach((ev) => {
       if (filtroSquadra !== 'tutto' && ev.squadra !== filtroSquadra) return;
 
-      if (tipo === 'gol' && ev.giocatore_id) {
+      // Gli autogol non vengono sommati nelle classifiche marcatori personali
+      if (tipo === 'gol' && ev.giocatore_id && !ev.is_autogol) {
         statsMap.set(ev.giocatore_id, (statsMap.get(ev.giocatore_id) || 0) + 1);
       } else if (tipo === 'assist' && ev.assist_man_id) {
         statsMap.set(ev.assist_man_id, (statsMap.get(ev.assist_man_id) || 0) + 1);
@@ -438,8 +440,8 @@ export async function saveMatchEvents(partitaId: string, events: any[]) {
 
   for (const ev of events) {
     await sql`
-      INSERT INTO partita_eventi (partita_id, orario, squadra, giocatore_id, assist_man_id)
-      VALUES (${partitaId}, ${ev.orario}, ${ev.squadra}, ${ev.giocatore_id}, ${ev.assist_man_id || null})
+      INSERT INTO partita_eventi (partita_id, orario, squadra, giocatore_id, assist_man_id, is_autogol)
+      VALUES (${partitaId}, ${ev.orario}, ${ev.squadra}, ${ev.giocatore_id}, ${ev.is_autogol ? null : (ev.assist_man_id || null)}, ${Boolean(ev.is_autogol)})
     `;
   }
   return true;
@@ -484,7 +486,7 @@ export async function createPlayer(data: {
 
   let nextNumber = 1;
   if (lastPlayer.length > 0) {
-    const lastId = lastPlayer[0].id; // es. "giocatore_0005"
+    const lastId = lastPlayer[0].id;
     const parts = lastId.split('_');
     if (parts[1]) {
       nextNumber = parseInt(parts[1], 10) + 1;

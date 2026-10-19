@@ -36,6 +36,7 @@ interface EventoMarcatore {
   squadra: 'bianchi' | 'neri';
   marcatore_nickname: string;
   assist_nickname?: string | null;
+  is_autogol?: boolean;
 }
 
 export default function HomePage() {
@@ -71,7 +72,10 @@ export default function HomePage() {
       setWhiteGoals(res.whiteGoals);
       setBlackGoals(res.blackGoals);
 
-      if (res.match?.id) {
+      // Mostra il tabellino solo se la partita è giocata/finita e ha eventi validi senza '00:00'
+      const isMatchFinished = res.match?.stato === 'finita' || res.match?.stato === 'giocata';
+
+      if (res.match?.id && isMatchFinished) {
         const events = await getMatchEventsAdmin(res.match.id);
         if (events && events.length > 0) {
           const hasZeroTime = events.some((ev: any) => ev.orario === '00:00');
@@ -215,7 +219,8 @@ export default function HomePage() {
                     {isWhite && (
                       <span className="text-slate-700">
                         {ev.marcatore_nickname}
-                        {ev.assist_nickname && (
+                        {ev.is_autogol && <span className="text-amber-600 font-bold text-[9px] ml-1">(AUT)</span>}
+                        {ev.assist_nickname && !ev.is_autogol && (
                           <span className="text-slate-400 text-[10px]"> ({ev.assist_nickname})</span>
                         )}
                       </span>
@@ -234,7 +239,8 @@ export default function HomePage() {
                     {!isWhite && (
                       <span className="text-slate-700">
                         {ev.marcatore_nickname}
-                        {ev.assist_nickname && (
+                        {ev.is_autogol && <span className="text-amber-600 font-bold text-[9px] ml-1">(AUT)</span>}
+                        {ev.assist_nickname && !ev.is_autogol && (
                           <span className="text-slate-400 text-[10px]"> ({ev.assist_nickname})</span>
                         )}
                       </span>

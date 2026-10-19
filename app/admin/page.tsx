@@ -62,6 +62,7 @@ interface PartitaEvento {
   squadra: 'bianchi' | 'neri';
   giocatore_id: string; // marcatore
   assist_man_id?: string | null; // assist-man opzionale
+  is_autogol?: boolean; // flag autogol
 }
 
 export default function AdminPage() {
@@ -363,6 +364,7 @@ export default function AdminPage() {
       squadra: defaultSquadra,
       giocatore_id: firstPlayer,
       assist_man_id: null,
+      is_autogol: false,
     };
 
     setMatchEvents([...matchEvents, newEvent]);
@@ -376,9 +378,13 @@ export default function AdminPage() {
 
   function handleUpdateEventTeam(index: number, newSquadra: 'bianchi' | 'neri') {
     const updated = [...matchEvents];
-    const firstP = matchPlayers.find((mp) => mp.squadra === newSquadra)?.giocatore_id || '';
+    const ev = updated[index];
+    // Se è autogol, il marcatore appartiene alla squadra opposta alla nuova squadra selezionata
+    const targetSquadra = ev.is_autogol ? (newSquadra === 'bianchi' ? 'neri' : 'bianchi') : newSquadra;
+    const firstP = matchPlayers.find((mp) => mp.squadra === targetSquadra)?.giocatore_id || '';
+    
     updated[index] = {
-      ...updated[index],
+      ...ev,
       squadra: newSquadra,
       giocatore_id: firstP,
       assist_man_id: null,
@@ -802,7 +808,7 @@ export default function AdminPage() {
                 })}
               </div>
 
-              {/* Sezione Tabellino (Eventi Gol & Assist) */}
+              {/* Sezione Tabellino (Eventi Gol & Assist & Autogol) */}
               <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between border-b pb-1.5 flex-nowrap gap-2">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5 shrink-0">
@@ -832,8 +838,11 @@ export default function AdminPage() {
                     <div className="text-[11px] text-slate-400 italic py-2 text-center">Nessun gol registrato per questa partita.</div>
                   ) : (
                     matchEvents.map((ev, index) => {
+                      // Se è autogol, il marcatore appartiene alla squadra opposta a quella che riceve il punto
+                      const targetSquadra = ev.is_autogol ? (ev.squadra === 'bianchi' ? 'neri' : 'bianchi') : ev.squadra;
+
                       const teamPlayerIds = matchPlayers
-                        .filter((mp) => mp.squadra === ev.squadra)
+                        .filter((mp) => mp.squadra === targetSquadra)
                         .map((mp) => mp.giocatore_id);
                       
                       const availableTeamPlayers = giocatori.filter((g) => teamPlayerIds.includes(g.id));
@@ -852,7 +861,7 @@ export default function AdminPage() {
                             />
                           </div>
 
-                          {/* Squadra */}
+                          {/* Squadra che riceve il punto */}
                           <select
                             value={ev.squadra}
                             onChange={(e) => handleUpdateEventTeam(index, e.target.value as 'bianchi' | 'neri')}
@@ -862,7 +871,7 @@ export default function AdminPage() {
                             <option value="neri">Neri</option>
                           </select>
 
-                          {/* Marcatore */}
+                          {/* Marcatore (Filtrato correttamente in base all'autogol) */}
                           <div className="flex-1">
                             <select
                               value={ev.giocatore_id}
@@ -874,19 +883,20 @@ export default function AdminPage() {
                               ) : (
                                 availableTeamPlayers.map((g) => (
                                   <option key={g.id} value={g.id}>
-                                    {g.nickname}
+                                    {g.nickname} {ev.is_autogol ? '(AUT)' : ''}
                                   </option>
                                 ))
                               )}
                             </select>
                           </div>
 
-                          {/* Assist-man */}
+                          {/* Assist-man (Disabilitato se autogol) */}
                           <div className="flex-1">
                             <select
                               value={ev.assist_man_id || ''}
+                              disabled={ev.is_autogol}
                               onChange={(e) => handleUpdateEvent(index, 'assist_man_id', e.target.value || null)}
-                              className="w-full p-1 rounded border border-slate-300 text-xs font-semibold bg-white text-slate-600"
+                              className={`w-full p-1 rounded border border-slate-300 text-xs font-semibold bg-white text-slate-600 ${ev.is_autogol ? 'opacity-40 cursor-not-allowed' : ''}`}
                             >
                               <option value="">-- Nessun Assist --</option>
                               {availableTeamPlayers
@@ -898,6 +908,35 @@ export default function AdminPage() {
                                 ))}
                             </select>
                           </div>
+
+                          {/* Pulsante discreto per Autogol */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newAutogolState = !ev.is_autogol;
+                              const updated = [...matchEvents];
+                              
+                              // Ricalcola il primo giocatore disponibile per la nuova squadra di competenza del marcatore
+                              const newTargetSquadra = newAutogolState ? (ev.squadra === 'bianchi' ? 'neri' : 'bianchi') : ev.squadra;
+                              const firstAvailablePlayer = matchPlayers.find((mp) => mp.squadra === newTargetSquadra)?.giocatore_id || '';
+
+                              updated[index] = {
+                                ...updated[index],
+                                is_autogol: newAutogolState,
+                                giocatore_id: firstAvailablePlayer,
+                                assist_man_id: newAutogolState ? null : updated[index].assist_man_id
+                              };
+                              setMatchEvents(updated);
+                            }}
+                            title={ev.is_autogol ? "Autogol attivo (clicca per disattivare)" : "Imposta come Autogol"}
+                            className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors shrink-0 ${
+                              ev.is_autogol 
+                                ? 'bg-amber-100 text-amber-800 border-amber-300 shadow-2xs' 
+                                : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                            }`}
+                          >
+                            {ev.is_autogol ? 'AUT' : 'Gol'}
+                          </button>
 
                           {/* Elimina Evento */}
                           <button
