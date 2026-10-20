@@ -8,7 +8,7 @@ export const fetchCache = 'force-no-store';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSeasonsList, getStatisticsData } from '@/app/actions/matches';
-import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords, RefreshCw } from 'lucide-react';
+import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords, RefreshCw, AlertCircle } from 'lucide-react';
 import PlayerModal from '../../public/lib/components/PlayerModal';
 
 interface StatGiocatore {
@@ -31,7 +31,7 @@ interface TeamStats {
   serie: ('B' | 'N' | 'P')[];
 }
 
-type TipoClassifica = 'gol' | 'assist' | 'presenze' | 'squadre';
+type TipoClassifica = 'gol' | 'assist' | 'autogol' | 'presenze' | 'squadre';
 type FiltroSquadra = 'tutto' | 'bianchi' | 'neri';
 
 export default function StatistichePage() {
@@ -126,6 +126,8 @@ export default function StatistichePage() {
         return 'Classifica Gol ⚽';
       case 'assist':
         return 'Classifica Assist 👟';
+      case 'autogol':
+        return 'Classifica Autogol 🔴';
       case 'presenze':
         return 'Classifica Presenze 🏃';
       case 'squadre':
@@ -139,6 +141,8 @@ export default function StatistichePage() {
         return 'GOL';
       case 'assist':
         return 'ASSIST';
+      case 'autogol':
+        return 'AUTOGOL';
       case 'presenze':
         return 'PRESENZE';
       case 'squadre':
@@ -348,9 +352,9 @@ export default function StatistichePage() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-                      <span className="text-xs font-black text-slate-900">
-                        {item.valore}
+                    <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border ${tipo === 'autogol' ? 'bg-red-50 border-red-200 text-red-900' : 'bg-slate-100 border-slate-200 text-slate-900'}`}>
+                      <span className="text-xs font-black">
+                        {tipo === 'autogol' ? `⚽ ${item.valore}` : item.valore}
                       </span>
                     </div>
                   </div>
@@ -405,6 +409,18 @@ export default function StatistichePage() {
                   </button>
 
                   <button
+                    onClick={() => handleSelectTipo('autogol')}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      tipo === 'autogol'
+                        ? 'bg-red-50 border-red-500 text-red-800 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <AlertCircle size={16} className="text-red-500" />
+                    Autogol
+                  </button>
+
+                  <button
                     onClick={() => handleSelectTipo('presenze')}
                     className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                       tipo === 'presenze'
@@ -418,7 +434,7 @@ export default function StatistichePage() {
 
                   <button
                     onClick={() => handleSelectTipo('squadre')}
-                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 col-span-2 transition-all ${
                       tipo === 'squadre'
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'

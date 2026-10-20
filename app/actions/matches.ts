@@ -61,7 +61,7 @@ export async function getMatchData(selectedMatchId?: string | null) {
     ORDER BY posizione ASC
   `;
 
-  // Leggi gli eventi della partita per calcolare gol e assist dinamici
+  // Leggi gli eventi della partita per calcolare gol, assist e autogol dinamici
   const matchEvents = await sql`
     SELECT squadra, giocatore_id, assist_man_id, is_autogol 
     FROM partita_eventi 
@@ -73,11 +73,16 @@ export async function getMatchData(selectedMatchId?: string | null) {
 
   const playerGoalsCount = new Map<string, number>();
   const playerAssistsCount = new Map<string, number>();
+  const playerAutogolsCount = new Map<string, number>();
 
   matchEvents.forEach((ev) => {
     // Gli autogol non contano per i gol personali del giocatore
     if (ev.giocatore_id && !ev.is_autogol) {
       playerGoalsCount.set(ev.giocatore_id, (playerGoalsCount.get(ev.giocatore_id) || 0) + 1);
+    }
+    // Traccia gli autogol fatti dal giocatore
+    if (ev.giocatore_id && ev.is_autogol) {
+      playerAutogolsCount.set(ev.giocatore_id, (playerAutogolsCount.get(ev.giocatore_id) || 0) + 1);
     }
     if (ev.assist_man_id) {
       playerAssistsCount.set(ev.assist_man_id, (playerAssistsCount.get(ev.assist_man_id) || 0) + 1);
@@ -106,6 +111,7 @@ export async function getMatchData(selectedMatchId?: string | null) {
       avatar_url: base.avatar_url || defaultAvatar,
       gol: playerGoalsCount.get(mp.giocatore_id) || 0,
       assist: playerAssistsCount.get(mp.giocatore_id) || 0,
+      autogol: playerAutogolsCount.get(mp.giocatore_id) || 0,
     };
   };
 
@@ -282,11 +288,12 @@ export async function getStatisticsData(stagioneId: string, tipo: string, filtro
     matchEvents.forEach((ev) => {
       if (filtroSquadra !== 'tutto' && ev.squadra !== filtroSquadra) return;
 
-      // Gli autogol non vengono sommati nelle classifiche marcatori personali
       if (tipo === 'gol' && ev.giocatore_id && !ev.is_autogol) {
         statsMap.set(ev.giocatore_id, (statsMap.get(ev.giocatore_id) || 0) + 1);
       } else if (tipo === 'assist' && ev.assist_man_id) {
         statsMap.set(ev.assist_man_id, (statsMap.get(ev.assist_man_id) || 0) + 1);
+      } else if (tipo === 'autogol' && ev.giocatore_id && ev.is_autogol) {
+        statsMap.set(ev.giocatore_id, (statsMap.get(ev.giocatore_id) || 0) + 1);
       }
     });
   }

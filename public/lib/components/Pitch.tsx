@@ -13,6 +13,7 @@ export interface Giocatore {
   avatar_url_b?: string;
   gol?: number;
   assist?: number;
+  autogol?: number;
 }
 
 interface PitchProps {
@@ -96,7 +97,7 @@ export default function Pitch({
   };
 
   const getPlayerData = (item: any, teamColor: 'white' | 'black') => {
-    if (!item) return { id: null, nickname: 'Giocatore', avatar_url: defaultAvatar, gol: 0, assist: 0 };
+    if (!item) return { id: null, nickname: 'Giocatore', avatar_url: defaultAvatar, gol: 0, assist: 0, autogol: 0 };
 
     const playerObj = item.giocatori || item.giocatore || item;
 
@@ -111,8 +112,9 @@ export default function Pitch({
     const avatar_url = specificAvatar || playerObj.avatar_url || item.avatar_url || defaultAvatar;
     const gol = item.gol || 0;
     const assist = item.assist || 0;
+    const autogol = item.autogol || 0;
 
-    return { id, nickname, avatar_url, gol, assist };
+    return { id, nickname, avatar_url, gol, assist, autogol };
   };
 
   const handlePlayerClick = (playerData: any) => {
@@ -229,7 +231,7 @@ export default function Pitch({
         {/* SQUADRA BIANCA */}
         {whiteTeam.map((item, idx) => {
           const playerData = getPlayerData(item, 'white');
-          const { id, nickname, avatar_url, gol, assist } = playerData;
+          const { id, nickname, avatar_url, gol, assist, autogol } = playerData;
           const pos = getPlayerPosition(idx, matchType, formationWhite, 'white');
           const isBench = idx >= maxPlayersInField;
 
@@ -278,7 +280,7 @@ export default function Pitch({
                   }}
                 />
 
-                {(gol > 0 || assist > 0) && (
+                {(gol > 0 || assist > 0 || autogol > 0) && (
                   <div
                     style={{
                       position: 'absolute',
@@ -328,6 +330,25 @@ export default function Pitch({
                         👟{assist}
                       </span>
                     )}
+                    {autogol > 0 && (
+                      <span
+                        style={{
+                          backgroundColor: '#ef4444',
+                          color: '#ffffff',
+                          padding: '1px 3px',
+                          fontSize: '9px',
+                          fontWeight: 'bold',
+                          borderRadius: '3px',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                          lineHeight: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '1px',
+                        }}
+                      >
+                        ⚽{autogol}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -356,7 +377,7 @@ export default function Pitch({
         {/* SQUADRA NERA */}
         {blackTeam.map((item, idx) => {
           const playerData = getPlayerData(item, 'black');
-          const { id, nickname, avatar_url, gol, assist } = playerData;
+          const { id, nickname, avatar_url, gol, assist, autogol } = playerData;
           const pos = getPlayerPosition(idx, matchType, formationBlack, 'black');
           const isBench = idx >= maxPlayersInField;
 
@@ -405,7 +426,7 @@ export default function Pitch({
                   }}
                 />
 
-                {(gol > 0 || assist > 0) && (
+                {(gol > 0 || assist > 0 || autogol > 0) && (
                   <div
                     style={{
                       position: 'absolute',
@@ -453,6 +474,25 @@ export default function Pitch({
                         }}
                       >
                         👟{assist}
+                      </span>
+                    )}
+                    {autogol > 0 && (
+                      <span
+                        style={{
+                          backgroundColor: '#ef4444',
+                          color: '#ffffff',
+                          padding: '1px 3px',
+                          fontSize: '9px',
+                          fontWeight: 'bold',
+                          borderRadius: '3px',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                          lineHeight: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '1px',
+                        }}
+                      >
+                        ⚽{autogol}
                       </span>
                     )}
                   </div>
