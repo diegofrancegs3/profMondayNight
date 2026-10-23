@@ -68,26 +68,30 @@ export async function getMatchData(selectedMatchId?: string | null) {
     WHERE partita_id = ${match.id}
   `;
 
-  const whiteGoals = matchEvents.filter((ev) => ev.squadra === 'bianchi').length;
-  const blackGoals = matchEvents.filter((ev) => ev.squadra === 'neri').length;
+  const isPlayed = match.stato === 'giocata';
+
+  const whiteGoals = isPlayed ? matchEvents.filter((ev) => ev.squadra === 'bianchi').length : 0;
+  const blackGoals = isPlayed ? matchEvents.filter((ev) => ev.squadra === 'neri').length : 0;
 
   const playerGoalsCount = new Map<string, number>();
   const playerAssistsCount = new Map<string, number>();
   const playerAutogolsCount = new Map<string, number>();
 
-  matchEvents.forEach((ev) => {
-    // Gli autogol non contano per i gol personali del giocatore
-    if (ev.giocatore_id && !ev.is_autogol) {
-      playerGoalsCount.set(ev.giocatore_id, (playerGoalsCount.get(ev.giocatore_id) || 0) + 1);
-    }
-    // Traccia gli autogol fatti dal giocatore
-    if (ev.giocatore_id && ev.is_autogol) {
-      playerAutogolsCount.set(ev.giocatore_id, (playerAutogolsCount.get(ev.giocatore_id) || 0) + 1);
-    }
-    if (ev.assist_man_id) {
-      playerAssistsCount.set(ev.assist_man_id, (playerAssistsCount.get(ev.assist_man_id) || 0) + 1);
-    }
-  });
+  if (isPlayed) {
+    matchEvents.forEach((ev) => {
+      // Gli autogol non contano per i gol personali del giocatore
+      if (ev.giocatore_id && !ev.is_autogol) {
+        playerGoalsCount.set(ev.giocatore_id, (playerGoalsCount.get(ev.giocatore_id) || 0) + 1);
+      }
+      // Traccia gli autogol fatti dal giocatore
+      if (ev.giocatore_id && ev.is_autogol) {
+        playerAutogolsCount.set(ev.giocatore_id, (playerAutogolsCount.get(ev.giocatore_id) || 0) + 1);
+      }
+      if (ev.assist_man_id) {
+        playerAssistsCount.set(ev.assist_man_id, (playerAssistsCount.get(ev.assist_man_id) || 0) + 1);
+      }
+    });
+  }
 
   const playerIds = matchPlayers.map((mp) => mp.giocatore_id);
 
