@@ -365,10 +365,33 @@ export interface Stagione {
 }
 
 export async function createStagione(nome: string): Promise<Stagione> {
+  // 1. Trova l'ultimo ID inserito nel formato "stagione_XXXX" per calcolare il successivo
+  const lastStagione = await sql`
+    SELECT id FROM stagioni 
+    WHERE id LIKE 'stagione_%' 
+    ORDER BY id DESC 
+    LIMIT 1
+  `;
+
+  let nextNumber = 1;
+  if (lastStagione.length > 0) {
+    const lastId = lastStagione[0].id;
+    const parts = lastId.split('_');
+    if (parts[1]) {
+      nextNumber = parseInt(parts[1], 10) + 1;
+    }
+  }
+
+  // 2. Genera il nuovo ID con formato a 4 cifre (es. "stagione_0002")
+  const newId = `stagione_${String(nextNumber).padStart(4, '0')}`;
+
+  // 3. Inserimento esplicito del nuovo ID generato insieme al nome
   const result = await sql`
-    INSERT INTO stagioni (nome) VALUES (${nome}) 
+    INSERT INTO stagioni (id, nome)
+    VALUES (${newId}, ${nome}) 
     RETURNING id, nome
   `;
+  
   return result[0] as Stagione;
 }
 
