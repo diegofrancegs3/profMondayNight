@@ -568,3 +568,18 @@ export async function updatePlayer(
   `;
   return result[0] as Giocatore;
 }
+
+export async function getLatestPlayedSeasonId(): Promise<string | null> {
+  // Cerca la stagione dell'ultima partita disputata (stato 'giocata')
+  const result = await sql`
+    SELECT stagione_id FROM partite 
+    WHERE stato = 'giocata' 
+    ORDER BY data DESC, time DESC 
+    LIMIT 1
+  `;
+  
+  if (result.length > 0 && result[0].stagione_id) {
+    return result[0].stagione_id;
+  }
+  return null;
+}

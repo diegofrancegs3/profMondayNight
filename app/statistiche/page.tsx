@@ -7,7 +7,7 @@ export const fetchCache = 'force-no-store';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSeasonsList, getStatisticsData } from '@/app/actions/matches';
+import { getSeasonsList, getStatisticsData, getLatestPlayedSeasonId } from '@/app/actions/matches';
 import { Trophy, Calendar, ChevronRight, X, Footprints, Goal, Award, Swords, RefreshCw, AlertCircle } from 'lucide-react';
 import PlayerModal from '../../public/lib/components/PlayerModal';
 
@@ -57,17 +57,28 @@ export default function StatistichePage() {
   const [selectedPlayer, setSelectedPlayer] = useState<StatGiocatore | null>(null);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState<boolean>(false);
 
-  // 1. Caricamento iniziale delle stagioni dal DB
+  // 1. Caricamento iniziale delle stagioni e selezione basata sull'ultima partita giocata
   useEffect(() => {
-    async function loadSeasons() {
+    async function loadSeasonsAndDefault() {
       const data = await getSeasonsList();
       if (data && data.length > 0) {
         setStagioniDisponibili(data);
-        setStagioneId(data[0].id);
-        setStagioneNome(data[0].nome);
+
+        // Recupera la stagione dell'ultima partita disputata
+        const latestPlayedSeasonId = await getLatestPlayedSeasonId();
+        const targetSeason = data.find((st) => st.id === latestPlayedSeasonId);
+
+        if (targetSeason) {
+          setStagioneId(targetSeason.id);
+          setStagioneNome(targetSeason.nome);
+        } else {
+          // Fallback alla prima stagione disponibile se non ci sono partite giocate
+          setStagioneId(data[0].id);
+          setStagioneNome(data[0].nome);
+        }
       }
     }
-    loadSeasons();
+    loadSeasonsAndDefault();
   }, []);
 
   // 2. Caricamento dinamico dei dati delle statistiche al variare dei filtri
@@ -111,6 +122,7 @@ export default function StatistichePage() {
   const handleSelectStagione = (st: Stagione) => {
     setStagioneId(st.id);
     setStagioneNome(st.nome);
+    setIsModalOpen(false);
     router.refresh(); // Pulizia cache router al cambio stagione
   };
 
