@@ -18,9 +18,10 @@ export async function getMatchData(selectedMatchId?: string | null) {
 
   if (selectedMatchId) {
     const matches = await sql`
-      SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
-      FROM partite 
-      WHERE id = ${selectedMatchId} AND stato IN ('programmata', 'giocata') 
+      SELECT p.id, p.stagione_id, TO_CHAR(p.data, 'YYYY-MM-DD') as data, p.time, p.tipologia, p.formazione_bianchi, p.formazione_neri, p.stato, s.nome as stagione_nome 
+      FROM partite p
+      JOIN stagioni s ON p.stagione_id = s.id
+      WHERE p.id = ${selectedMatchId} AND p.stato IN ('programmata', 'giocata') 
       LIMIT 1
     `;
     currentMatch = matches[0] || null;
@@ -29,10 +30,11 @@ export async function getMatchData(selectedMatchId?: string | null) {
   if (!currentMatch) {
     const todayStr = new Date().toISOString().split('T')[0];
     const upcoming = await sql`
-      SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
-      FROM partite 
-      WHERE stato IN ('programmata', 'giocata') AND data >= ${todayStr}
-      ORDER BY data ASC, time ASC 
+      SELECT p.id, p.stagione_id, TO_CHAR(p.data, 'YYYY-MM-DD') as data, p.time, p.tipologia, p.formazione_bianchi, p.formazione_neri, p.stato, s.nome as stagione_nome 
+      FROM partite p
+      JOIN stagioni s ON p.stagione_id = s.id
+      WHERE p.stato IN ('programmata', 'giocata') AND p.data >= ${todayStr}
+      ORDER BY p.data ASC, p.time ASC 
       LIMIT 1
     `;
 
@@ -40,10 +42,11 @@ export async function getMatchData(selectedMatchId?: string | null) {
       currentMatch = upcoming[0];
     } else {
       const lastMatch = await sql`
-        SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
-        FROM partite 
-        WHERE stato IN ('programmata', 'giocata')
-        ORDER BY data DESC, time DESC 
+        SELECT p.id, p.stagione_id, TO_CHAR(p.data, 'YYYY-MM-DD') as data, p.time, p.tipologia, p.formazione_bianchi, p.formazione_neri, p.stato, s.nome as stagione_nome 
+        FROM partite p
+        JOIN stagioni s ON p.stagione_id = s.id
+        WHERE p.stato IN ('programmata', 'giocata')
+        ORDER BY p.data DESC, time DESC 
         LIMIT 1
       `;
       currentMatch = lastMatch[0] || null;
@@ -133,12 +136,36 @@ export async function getMatchData(selectedMatchId?: string | null) {
 
 export async function getMatchesList() {
   const matches = await sql`
-    SELECT id, stagione_id, TO_CHAR(data, 'YYYY-MM-DD') as data, time, tipologia, formazione_bianchi, formazione_neri, stato 
-    FROM partite 
-    WHERE stato IN ('programmata', 'giocata') 
-    ORDER BY data DESC, time DESC
+    SELECT 
+      p.id, 
+      p.stagione_id, 
+      TO_CHAR(p.data, 'YYYY-MM-DD') as data, 
+      p.time, 
+      p.tipologia, 
+      p.formazione_bianchi, 
+      p.formazione_neri, 
+      p.stato, 
+      s.nome as stagione_nome,
+      (SELECT COUNT(*) FROM partita_eventi pe WHERE pe.partita_id = p.id AND pe.squadra = 'bianchi') as gol_bianchi,
+      (SELECT COUNT(*) FROM partita_eventi pe WHERE pe.partita_id = p.id AND pe.squadra = 'neri') as gol_neri
+    FROM partite p
+    JOIN stagioni s ON p.stagione_id = s.id
+    WHERE p.stato IN ('programmata', 'giocata') 
+    ORDER BY p.data DESC, p.time DESC
   `;
   return matches.map(sanitizeMatch);
+}
+
+// Restituisce solo le stagioni che hanno almeno una partita visibile (programmata o giocata)
+export async function getActiveSeasonsList() {
+  const seasons = await sql`
+    SELECT DISTINCT s.id, s.nome 
+    FROM stagioni s
+    JOIN partite p ON p.stagione_id = s.id
+    WHERE p.stato IN ('programmata', 'giocata')
+    ORDER BY s.nome DESC
+  `;
+  return seasons as Stagione[];
 }
 
 export async function getPlayerStats(giocatoreId: string, stagioneId?: string | null, filtroSquadra?: string) {
@@ -365,7 +392,6 @@ export interface Stagione {
 }
 
 export async function createStagione(nome: string): Promise<Stagione> {
-  // 1. Trova l'ultimo ID inserito nel formato "stagione_XXXX" per calcolare il successivo
   const lastStagione = await sql`
     SELECT id FROM stagioni 
     WHERE id LIKE 'stagione_%' 
@@ -382,10 +408,8 @@ export async function createStagione(nome: string): Promise<Stagione> {
     }
   }
 
-  // 2. Genera il nuovo ID con formato a 4 cifre (es. "stagione_0002")
   const newId = `stagione_${String(nextNumber).padStart(4, '0')}`;
 
-  // 3. Inserimento esplicito del nuovo ID generato insieme al nome
   const result = await sql`
     INSERT INTO stagioni (id, nome)
     VALUES (${newId}, ${nome}) 
@@ -510,7 +534,6 @@ export async function createPlayer(data: {
 }) {
   const defaultAvatar = '/avatars/default.jpg';
   
-  // 1. Trova l'ultimo ID inserito nel formato "giocatore_XXXX" per calcolare il successivo
   const lastPlayer = await sql`
     SELECT id FROM giocatori 
     WHERE id LIKE 'giocatore_%' 
@@ -527,10 +550,8 @@ export async function createPlayer(data: {
     }
   }
 
-  // 2. Genera il nuovo ID con formato a 4 cifre (es. "giocatore_0006")
   const newId = `giocatore_${String(nextNumber).padStart(4, '0')}`;
 
-  // 3. Inserimento esplicito del nuovo ID generato
   const result = await sql`
     INSERT INTO giocatori (id, nickname, avatar_url, avatar_url_w, avatar_url_b)
     VALUES (
@@ -570,7 +591,6 @@ export async function updatePlayer(
 }
 
 export async function getLatestPlayedSeasonId(): Promise<string | null> {
-  // Cerca la stagione dell'ultima partita disputata (stato 'giocata')
   const result = await sql`
     SELECT stagione_id FROM partite 
     WHERE stato = 'giocata' 

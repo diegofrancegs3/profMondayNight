@@ -7,7 +7,7 @@ export const fetchCache = 'force-no-store';
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { getMatchData, getMatchesList, getMatchEventsAdmin } from '@/app/actions/matches';
+import { getMatchData, getMatchesList, getMatchEventsAdmin, getActiveSeasonsList } from '@/app/actions/matches';
 import Pitch from '@/public/lib/components/Pitch';
 import { Clock, Calendar, ChevronRight, X } from 'lucide-react';
 
@@ -29,6 +29,15 @@ interface Partita {
   tipologia?: string;
   formazione_bianchi?: string;
   formazione_neri?: string;
+  stagione_id?: string;
+  stagione_nome?: string;
+  gol_bianchi?: number;
+  gol_neri?: number;
+}
+
+interface Stagione {
+  id: string;
+  nome: string;
 }
 
 interface EventoMarcatore {
@@ -55,9 +64,11 @@ export default function HomePage() {
   const [matchEvents, setMatchEvents] = useState<EventoMarcatore[]>([]);
   const [showScorers, setShowScorers] = useState<boolean>(false);
 
-  // Stato per il popup dell'elenco partite
+  // Stato per il popup dell'elenco partite e filtri stagione
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [matchesList, setMatchesList] = useState<Partita[]>([]);
+  const [activeSeasons, setActiveSeasons] = useState<Stagione[]>([]);
+  const [selectedSeasonFilter, setSelectedSeasonFilter] = useState<string>('all');
   const [loadingList, setLoadingList] = useState<boolean>(false);
 
   // 1. Carica la partita selezionata e verifica gli eventi per il tabellino
@@ -101,13 +112,21 @@ export default function HomePage() {
     loadMatchData();
   }, [selectedMatchId]);
 
-  // 2. Carica sempre l'elenco aggiornato delle partite ogni volta che apri il popup
+  // 2. Carica l'elenco aggiornato delle partite e delle stagioni attive ogni volta che apri il popup
   const openMatchesModal = async () => {
     setIsModalOpen(true);
     setLoadingList(true);
-    const data = await getMatchesList();
-    if (data) {
-      setMatchesList(data as Partita[]);
+    
+    const [matchesData, seasonsData] = await Promise.all([
+      getMatchesList(),
+      getActiveSeasonsList()
+    ]);
+
+    if (matchesData) {
+      setMatchesList(matchesData as Partita[]);
+    }
+    if (seasonsData) {
+      setActiveSeasons(seasonsData as Stagione[]);
     }
     setLoadingList(false);
   };
@@ -150,6 +169,11 @@ export default function HomePage() {
   const isPlayed = match.stato === 'finita' || match.stato === 'giocata';
   const dateFormatted = formatDate(match.data, match.time);
 
+  // Filtra le partite nel modal in base alla stagione selezionata
+  const filteredMatches = selectedSeasonFilter === 'all' 
+    ? matchesList 
+    : matchesList.filter(m => m.stagione_id === selectedSeasonFilter);
+
   return (
     <div className="space-y-1">
       {/* HEADER PARTITA COMPATTO ED ESSENZIALE (CLICCABILE PER POPUP) */}
@@ -167,7 +191,12 @@ export default function HomePage() {
           {isPlayed ? 'Giocata' : 'Prossimo Match'}
         </span>
 
-        <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+          {match.stagione_nome && (
+            <span className="text-slate-400 font-bold text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
+              {match.stagione_nome}
+            </span>
+          )}
           <span className="flex items-center gap-1 capitalize">
             <Calendar size={13} className="text-slate-400" />
             {dateFormatted}
@@ -203,6 +232,7 @@ export default function HomePage() {
             Neri <span className="text-xs font-normal text-slate-400">({match.formazione_neri || '1-2-1'})</span>
             <span className="w-3 h-3 rounded-full bg-slate-900 inline-block shadow-xs"></span>
           </span>
+
         </div>
 
         {/* Tabellino Marcatori Dettagliato */}
@@ -214,7 +244,6 @@ export default function HomePage() {
 
               return (
                 <div key={idx} className="grid grid-cols-[1fr_auto_1fr] items-center font-medium gap-2">
-                  {/* Lato Sinistra (Bianchi) */}
                   <div className="text-right flex items-center justify-end">
                     {isWhite && (
                       <span className="text-slate-700">
@@ -227,14 +256,12 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  {/* Centro (Minuto) */}
                   <div className="text-center px-1">
                     <span className="text-slate-400 text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded font-bold">
                       {minute}&apos;
                     </span>
                   </div>
 
-                  {/* Lato Destra (Neri) */}
                   <div className="text-left flex items-center justify-start">
                     {!isWhite && (
                       <span className="text-slate-700">
@@ -261,10 +288,10 @@ export default function HomePage() {
         />
       </div>
 
-      {/* POPUP / MODAL SELEZIONE PARTITE */}
+      {/* POPUP / MODAL SELEZIONE PARTITE CON FILTRO STAGIONI E RISULTATI */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80vh] flex flex-col shadow-xl overflow-hidden">
+          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col shadow-xl overflow-hidden">
             <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h3 className="font-bold text-slate-800 text-sm">Seleziona una partita</h3>
               <button
@@ -275,17 +302,46 @@ export default function HomePage() {
               </button>
             </div>
 
+            {/* BARRA FILTRI STAGIONE */}
+            {activeSeasons.length > 0 && (
+              <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto shrink-0">
+                <button
+                  onClick={() => setSelectedSeasonFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                    selectedSeasonFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Tutte
+                </button>
+                {activeSeasons.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedSeasonFilter(s.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                      selectedSeasonFilter === s.id
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {s.nome}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className="overflow-y-auto p-2 space-y-1 flex-1 divide-y divide-slate-100">
               {loadingList ? (
                 <div className="p-6 text-center text-xs text-slate-400">
                   Caricamento elenco partite...
                 </div>
-              ) : matchesList.length === 0 ? (
+              ) : filteredMatches.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-400">
-                  Nessuna partita trovata.
+                  Nessuna partita trovata per questa stagione.
                 </div>
               ) : (
-                matchesList.map((m) => {
+                filteredMatches.map((m) => {
                   const isSelected = m.id === match.id;
                   const mPlayed = m.stato === 'finita' || m.stato === 'giocata';
 
@@ -309,17 +365,29 @@ export default function HomePage() {
                         >
                           {mPlayed ? 'Giocata' : 'Programmata'}
                         </span>
-                        <div className="text-xs font-semibold text-slate-800 capitalize">
-                          {formatDate(m.data, m.time)}
+                        <div className="text-xs font-semibold text-slate-800 capitalize flex items-center gap-1.5">
+                          {m.stagione_nome && (
+                            <span className="text-slate-400 font-bold text-[10px]">
+                              [{m.stagione_nome}]
+                            </span>
+                          )}
+                          <span>{formatDate(m.data, m.time)}</span>
                           {m.time && (
-                            <span className="text-slate-400 font-normal ml-1.5">
+                            <span className="text-slate-400 font-normal ml-1">
                               {m.time.slice(0, 5)}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <ChevronRight size={14} className="text-slate-400" />
+                      <div className="flex items-center gap-2">
+                        {mPlayed && m.gol_bianchi !== undefined && m.gol_neri !== undefined && (
+                          <span className="text-xs font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                            {m.gol_bianchi} - {m.gol_neri}
+                          </span>
+                        )}
+                        <ChevronRight size={14} className="text-slate-400" />
+                      </div>
                     </button>
                   );
                 })
