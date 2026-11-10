@@ -110,6 +110,9 @@ export function BottomNav() {
         borderTop: '1px solid #e2e8f0',
         marginTop: '0px',
         width: '100%',
+        // Aggiunge spazio automatico per la barra di navigazione inferiore dei telefoni moderni
+        paddingBottom: 'env(safe-area-inset-bottom, 8px)',
+        paddingTop: '6px',
       }}
     >
       <div
@@ -119,7 +122,7 @@ export function BottomNav() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-around',
-          height: '40px',
+          height: '36px',
           padding: '0 16px',
         }}
       >
@@ -149,9 +152,18 @@ export function BottomNav() {
 
 export default function Navbar({ children }) {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+    <div 
+      style={{ 
+        minHeight: '100dvh', // <--- Sostituito 100vh con 100dvh per eliminare lo scroll fantasma su mobile
+        display: 'flex', 
+        flexDirection: 'column', 
+        justifyContent: 'space-between' 
+      }}
+    >
       <Header />
-      {children}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {children}
+      </div>
       <BottomNav />
     </div>
   );
