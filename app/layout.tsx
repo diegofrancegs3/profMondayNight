@@ -1,3 +1,4 @@
+// app/layout.tsx
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
@@ -8,6 +9,8 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Prof Monday Night',
   description: 'Prossima partita e formazioni',
+  manifest: '/manifest.json', // <--- Aggiunto qui
+  themeColor: '#0f172a',      // <--- Aggiunto per colorare la barra del browser su mobile
 };
 
 export default function RootLayout({

@@ -139,9 +139,12 @@ export default function AdminPage() {
 
     if (data.stagioni && data.stagioni.length > 0) {
       setStagioni(data.stagioni as Stagione[]);
-      const maxStagione = data.stagioni[0];
-      setSelectedStagioneId(maxStagione.id);
-      setMatchForm((prev) => ({ ...prev, stagione_id: maxStagione.id }));
+      
+      // Imposta la stagione di default in linea con la Home (prossimo match o ultimo giocato)[cite: 1]
+      const initialSeasonId = (data as any).defaultSeasonId || data.stagioni[0].id;
+      
+      setSelectedStagioneId(initialSeasonId);
+      setMatchForm((prev) => ({ ...prev, stagione_id: initialSeasonId }));
     }
 
     if (data.giocatori) setGiocatori(data.giocatori as Giocatore[]);
@@ -348,7 +351,6 @@ export default function AdminPage() {
     loadMatchDetails(selectedMatchId);
   }
 
-  // Gestione Eventi (Tabellino)
   function handleAddEvent() {
     if (selectedMatchId === 'new' || !selectedMatchId) {
       alert('Salva prima la partita per poter inserire gli eventi!');
@@ -379,7 +381,6 @@ export default function AdminPage() {
   function handleUpdateEventTeam(index: number, newSquadra: 'bianchi' | 'neri') {
     const updated = [...matchEvents];
     const ev = updated[index];
-    // Se è autogol, il marcatore appartiene alla squadra opposta alla nuova squadra selezionata
     const targetSquadra = ev.is_autogol ? (newSquadra === 'bianchi' ? 'neri' : 'bianchi') : newSquadra;
     const firstP = matchPlayers.find((mp) => mp.squadra === targetSquadra)?.giocatore_id || '';
     
@@ -699,7 +700,6 @@ export default function AdminPage() {
 
           {selectedMatchId !== 'new' && (
             <>
-              {/* Sezione Convocati (Solo Rose e Posizioni) */}
               <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between border-b pb-1.5">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5">
@@ -808,7 +808,6 @@ export default function AdminPage() {
                 })}
               </div>
 
-              {/* Sezione Tabellino (Eventi Gol & Assist & Autogol) */}
               <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between border-b pb-1.5 flex-nowrap gap-2">
                   <span className="font-bold text-slate-900 flex items-center gap-1.5 shrink-0">
@@ -838,7 +837,6 @@ export default function AdminPage() {
                     <div className="text-[11px] text-slate-400 italic py-2 text-center">Nessun gol registrato per questa partita.</div>
                   ) : (
                     matchEvents.map((ev, index) => {
-                      // Se è autogol, il marcatore appartiene alla squadra opposta a quella che riceve il punto
                       const targetSquadra = ev.is_autogol ? (ev.squadra === 'bianchi' ? 'neri' : 'bianchi') : ev.squadra;
 
                       const teamPlayerIds = matchPlayers
@@ -849,7 +847,6 @@ export default function AdminPage() {
 
                       return (
                         <div key={index} className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          {/* Orario mm:ss */}
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] font-bold text-slate-500">Min:</span>
                             <input
@@ -861,7 +858,6 @@ export default function AdminPage() {
                             />
                           </div>
 
-                          {/* Squadra che riceve il punto */}
                           <select
                             value={ev.squadra}
                             onChange={(e) => handleUpdateEventTeam(index, e.target.value as 'bianchi' | 'neri')}
@@ -871,7 +867,6 @@ export default function AdminPage() {
                             <option value="neri">Neri</option>
                           </select>
 
-                          {/* Marcatore (Filtrato correttamente in base all'autogol) */}
                           <div className="flex-1">
                             <select
                               value={ev.giocatore_id}
@@ -890,7 +885,6 @@ export default function AdminPage() {
                             </select>
                           </div>
 
-                          {/* Assist-man (Disabilitato se autogol) */}
                           <div className="flex-1">
                             <select
                               value={ev.assist_man_id || ''}
@@ -909,14 +903,12 @@ export default function AdminPage() {
                             </select>
                           </div>
 
-                          {/* Pulsante discreto per Autogol */}
                           <button
                             type="button"
                             onClick={() => {
                               const newAutogolState = !ev.is_autogol;
                               const updated = [...matchEvents];
                               
-                              // Ricalcola il primo giocatore disponibile per la nuova squadra di competenza del marcatore
                               const newTargetSquadra = newAutogolState ? (ev.squadra === 'bianchi' ? 'neri' : 'bianchi') : ev.squadra;
                               const firstAvailablePlayer = matchPlayers.find((mp) => mp.squadra === newTargetSquadra)?.giocatore_id || '';
 
@@ -938,7 +930,6 @@ export default function AdminPage() {
                             {ev.is_autogol ? 'AUT' : 'Gol'}
                           </button>
 
-                          {/* Elimina Evento */}
                           <button
                             type="button"
                             onClick={() => handleRemoveEvent(index)}

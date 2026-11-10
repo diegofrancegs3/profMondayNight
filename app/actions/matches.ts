@@ -378,11 +378,41 @@ export async function getAdminInitialData() {
     FROM partite 
     ORDER BY data DESC, time DESC
   `;
+
+  // Calcolo della stagione di default in linea con la Home
+  let defaultSeasonId = null;
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const upcoming = await sql`
+    SELECT stagione_id FROM partite 
+    WHERE stato IN ('programmata', 'giocata') AND data >= ${todayStr}
+    ORDER BY data ASC, time ASC 
+    LIMIT 1
+  `;
+
+  if (upcoming.length > 0) {
+    defaultSeasonId = upcoming[0].stagione_id;
+  } else {
+    const lastPlayed = await sql`
+      SELECT stagione_id FROM partite 
+      WHERE stato IN ('programmata', 'giocata')
+      ORDER BY data DESC, time DESC 
+      LIMIT 1
+    `;
+    if (lastPlayed.length > 0) {
+      defaultSeasonId = lastPlayed[0].stagione_id;
+    }
+  }
+
+  if (!defaultSeasonId && stagioni.length > 0) {
+    defaultSeasonId = stagioni[0].id;
+  }
   
   return { 
     stagioni, 
     giocatori, 
-    partite: partite.map(sanitizeMatch) 
+    partite: partite.map(sanitizeMatch),
+    defaultSeasonId
   };
 }
 
