@@ -9,8 +9,8 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Prof Monday Night',
   description: 'Prossima partita e formazioni',
-  manifest: '/manifest.json', // <--- Aggiunto qui
-  themeColor: '#0f172a',      // <--- Aggiunto per colorare la barra del browser su mobile
+  manifest: '/manifest.json', 
+  themeColor: '#ffffff',      
 };
 
 export default function RootLayout({
