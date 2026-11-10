@@ -9,9 +9,11 @@ export function Header() {
       style={{
         backgroundColor: '#ffffff',
         borderBottom: '1px solid #e2e8f0',
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
+        height: '36px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
       }}
     >
       <div
@@ -19,7 +21,6 @@ export function Header() {
           maxWidth: '448px',
           margin: '0 auto',
           padding: '0 16px',
-          height: '24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -108,9 +109,8 @@ export function BottomNav() {
       style={{
         backgroundColor: '#ffffff',
         borderTop: '1px solid #e2e8f0',
-        marginTop: '0px',
         width: '100%',
-        // Aggiunge spazio automatico per la barra di navigazione inferiore dei telefoni moderni
+        flexShrink: 0,
         paddingBottom: 'env(safe-area-inset-bottom, 8px)',
         paddingTop: '6px',
       }}
@@ -154,15 +154,23 @@ export default function Navbar({ children }) {
   return (
     <div 
       style={{ 
-        minHeight: '100dvh', // <--- Sostituito 100vh con 100dvh per eliminare lo scroll fantasma su mobile
+        height: '100dvh', 
         display: 'flex', 
         flexDirection: 'column', 
-        justifyContent: 'space-between' 
+        overflow: 'hidden', // Blocca lo scroll dell'intera finestra prevenendo il bug del refresh mobile
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
       }}
     >
       <Header />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {children}
+      {/* Area dei contenuti centrale (questa scrolla solo se il contenuto eccede lo spazio) */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ width: '100%', maxWidth: '448px', margin: '0 auto', padding: '4px' }}>
+          {children}
+        </div>
       </div>
       <BottomNav />
     </div>
