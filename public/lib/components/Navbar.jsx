@@ -13,9 +13,7 @@ export function Header() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
+        flexShrink: 0,
       }}
     >
       <div
@@ -112,6 +110,7 @@ export function BottomNav() {
         backgroundColor: '#ffffff',
         borderTop: '1px solid #e2e8f0',
         width: '100%',
+        flexShrink: 0,
         paddingBottom: 'env(safe-area-inset-bottom, 8px)',
         paddingTop: '6px',
       }}
@@ -155,16 +154,23 @@ export default function Navbar({ children }) {
   return (
     <div 
       style={{ 
-        minHeight: '100dvh', 
+        height: '100dvh', 
         display: 'flex', 
         flexDirection: 'column', 
-        justifyContent: 'space-between',
-        // Rimuoviamo position: fixed e overflow: hidden per permettere il corretto funzionamento del pull-to-refresh
+        overflow: 'hidden',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
       }}
     >
       <Header />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '448px', margin: '0 auto', padding: '4px' }}>
-        {children}
+      {/* Area dei contenuti centrale: flex: 1 con minHeight: 0 impedisce ai contenuti lunghi di spingere fuori lo spazio e tagliare la navbar */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: '100%', maxWidth: '448px', margin: '0 auto', padding: '4px', flex: 1 }}>
+          {children}
+        </div>
       </div>
       <BottomNav />
     </div>
