@@ -13,7 +13,9 @@ export function Header() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        flexShrink: 0,
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
       }}
     >
       <div
@@ -110,7 +112,6 @@ export function BottomNav() {
         backgroundColor: '#ffffff',
         borderTop: '1px solid #e2e8f0',
         width: '100%',
-        flexShrink: 0,
         paddingBottom: 'env(safe-area-inset-bottom, 8px)',
         paddingTop: '6px',
       }}
@@ -154,23 +155,16 @@ export default function Navbar({ children }) {
   return (
     <div 
       style={{ 
-        height: '100dvh', 
+        minHeight: '100dvh', 
         display: 'flex', 
         flexDirection: 'column', 
-        overflow: 'hidden', // Blocca lo scroll dell'intera finestra prevenendo il bug del refresh mobile
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        justifyContent: 'space-between',
+        // Rimuoviamo position: fixed e overflow: hidden per permettere il corretto funzionamento del pull-to-refresh
       }}
     >
       <Header />
-      {/* Area dei contenuti centrale (questa scrolla solo se il contenuto eccede lo spazio) */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <div style={{ width: '100%', maxWidth: '448px', margin: '0 auto', padding: '4px' }}>
-          {children}
-        </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '448px', margin: '0 auto', padding: '4px' }}>
+        {children}
       </div>
       <BottomNav />
     </div>
