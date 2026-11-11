@@ -255,8 +255,8 @@ export default function Pitch({
               <div
                 style={{
                   position: 'relative',
-                  width: '40px',
-                  height: '54px',
+                  width: '42px',
+                  height: '56px',
                   borderRadius: '6px',
                   border: '2px solid #ffffff',
                   backgroundColor: '#ffffff',
@@ -401,8 +401,8 @@ export default function Pitch({
               <div
                 style={{
                   position: 'relative',
-                  width: '40px',
-                  height: '54px',
+                  width: '42px',
+                  height: '56px',
                   borderRadius: '6px',
                   border: '2px solid #0f172a',
                   backgroundColor: '#0f172a',
