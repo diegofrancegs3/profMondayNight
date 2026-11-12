@@ -63,6 +63,7 @@ interface PartitaEvento {
   giocatore_id: string; // marcatore
   assist_man_id?: string | null; // assist-man opzionale
   is_autogol?: boolean; // flag autogol
+  timestamp_reale?: string; // timestamp reale dell'evento
 }
 
 export default function AdminPage() {
@@ -140,7 +141,6 @@ export default function AdminPage() {
     if (data.stagioni && data.stagioni.length > 0) {
       setStagioni(data.stagioni as Stagione[]);
       
-      // Imposta la stagione di default in linea con la Home (prossimo match o ultimo giocato)[cite: 1]
       const initialSeasonId = (data as any).defaultSeasonId || data.stagioni[0].id;
       
       setSelectedStagioneId(initialSeasonId);
@@ -248,6 +248,8 @@ export default function AdminPage() {
     }
     const eventsData = await getMatchEventsAdmin(partitaId);
     if (eventsData) {
+      // Usiamo direttamente gli eventi così come arrivano da getMatchEventsAdmin,
+      // senza controlli che rischiano di sovrascrivere le date reali.
       setMatchEvents(eventsData as PartitaEvento[]);
     }
   }
@@ -367,6 +369,7 @@ export default function AdminPage() {
       giocatore_id: firstPlayer,
       assist_man_id: null,
       is_autogol: false,
+      timestamp_reale: '0001-01-01 00:00:00+00', // Valore di default richiesto
     };
 
     setMatchEvents([...matchEvents, newEvent]);
@@ -832,7 +835,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {matchEvents.length === 0 ? (
                     <div className="text-[11px] text-slate-400 italic py-2 text-center">Nessun gol registrato per questa partita.</div>
                   ) : (
@@ -846,98 +849,113 @@ export default function AdminPage() {
                       const availableTeamPlayers = giocatori.filter((g) => teamPlayerIds.includes(g.id));
 
                       return (
-                        <div key={index} className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-bold text-slate-500">Min:</span>
+                        <div key={index} className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200">
+                          {/* Prima riga evento: Minuto, Squadra, Marcatore, Assist, Autogol, Elimina */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-bold text-slate-500">Min:</span>
+                              <input
+                                type="text"
+                                placeholder="00:00"
+                                value={ev.orario}
+                                onChange={(e) => handleUpdateEvent(index, 'orario', e.target.value)}
+                                className="w-14 p-1 text-center font-mono rounded border border-slate-300 text-xs font-bold bg-white"
+                              />
+                            </div>
+
+                            <select
+                              value={ev.squadra}
+                              onChange={(e) => handleUpdateEventTeam(index, e.target.value as 'bianchi' | 'neri')}
+                              className="p-1 rounded border border-slate-300 text-xs font-bold bg-white capitalize"
+                            >
+                              <option value="bianchi">Bianchi</option>
+                              <option value="neri">Neri</option>
+                            </select>
+
+                            <div className="flex-1">
+                              <select
+                                value={ev.giocatore_id}
+                                onChange={(e) => handleUpdateEvent(index, 'giocatore_id', e.target.value)}
+                                className="w-full p-1 rounded border border-slate-300 text-xs font-semibold bg-white"
+                              >
+                                {availableTeamPlayers.length === 0 ? (
+                                  <option value="">Nessun giocatore in rosa</option>
+                                ) : (
+                                  availableTeamPlayers.map((g) => (
+                                    <option key={g.id} value={g.id}>
+                                      {g.nickname} {ev.is_autogol ? '(AUT)' : ''}
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+
+                            <div className="flex-1">
+                              <select
+                                value={ev.assist_man_id || ''}
+                                disabled={ev.is_autogol}
+                                onChange={(e) => handleUpdateEvent(index, 'assist_man_id', e.target.value || null)}
+                                className={`w-full p-1 rounded border border-slate-300 text-xs font-semibold bg-white text-slate-600 ${ev.is_autogol ? 'opacity-40 cursor-not-allowed' : ''}`}
+                              >
+                                <option value="">-- Nessun Assist --</option>
+                                {availableTeamPlayers
+                                  .filter((g) => g.id !== ev.giocatore_id)
+                                  .map((g) => (
+                                    <option key={g.id} value={g.id}>
+                                      {g.nickname}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newAutogolState = !ev.is_autogol;
+                                const updated = [...matchEvents];
+                                
+                                const newTargetSquadra = newAutogolState ? (ev.squadra === 'bianchi' ? 'neri' : 'bianchi') : ev.squadra;
+                                const firstAvailablePlayer = matchPlayers.find((mp) => mp.squadra === newTargetSquadra)?.giocatore_id || '';
+
+                                updated[index] = {
+                                  ...updated[index],
+                                  is_autogol: newAutogolState,
+                                  giocatore_id: firstAvailablePlayer,
+                                  assist_man_id: newAutogolState ? null : updated[index].assist_man_id
+                                };
+                                setMatchEvents(updated);
+                              }}
+                              title={ev.is_autogol ? "Autogol attivo (clicca per disattivare)" : "Imposta come Autogol"}
+                              className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors shrink-0 ${
+                                ev.is_autogol 
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300 shadow-2xs' 
+                                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                              }`}
+                            >
+                              {ev.is_autogol ? 'AUT' : 'Gol'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEvent(index)}
+                              className="p-1 text-red-500 hover:text-red-700 rounded"
+                              title="Elimina evento"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+
+                          {/* Seconda riga evento: Timestamp Reale modificabile */}
+                          <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60">
+                            <span className="text-[10px] font-semibold text-slate-500">Timestamp Reale:</span>
                             <input
                               type="text"
-                              placeholder="00:00"
-                              value={ev.orario}
-                              onChange={(e) => handleUpdateEvent(index, 'orario', e.target.value)}
-                              className="w-14 p-1 text-center font-mono rounded border border-slate-300 text-xs font-bold bg-white"
+                              value={ev.timestamp_reale || '0001-01-01 00:00:00+00'}
+                              onChange={(e) => handleUpdateEvent(index, 'timestamp_reale', e.target.value)}
+                              className="flex-1 p-1 font-mono rounded border border-slate-300 text-[11px] bg-white text-slate-700"
+                              placeholder="0001-01-01 00:00:00+00"
                             />
                           </div>
-
-                          <select
-                            value={ev.squadra}
-                            onChange={(e) => handleUpdateEventTeam(index, e.target.value as 'bianchi' | 'neri')}
-                            className="p-1 rounded border border-slate-300 text-xs font-bold bg-white capitalize"
-                          >
-                            <option value="bianchi">Bianchi</option>
-                            <option value="neri">Neri</option>
-                          </select>
-
-                          <div className="flex-1">
-                            <select
-                              value={ev.giocatore_id}
-                              onChange={(e) => handleUpdateEvent(index, 'giocatore_id', e.target.value)}
-                              className="w-full p-1 rounded border border-slate-300 text-xs font-semibold bg-white"
-                            >
-                              {availableTeamPlayers.length === 0 ? (
-                                <option value="">Nessun giocatore in rosa</option>
-                              ) : (
-                                availableTeamPlayers.map((g) => (
-                                  <option key={g.id} value={g.id}>
-                                    {g.nickname} {ev.is_autogol ? '(AUT)' : ''}
-                                  </option>
-                                ))
-                              )}
-                            </select>
-                          </div>
-
-                          <div className="flex-1">
-                            <select
-                              value={ev.assist_man_id || ''}
-                              disabled={ev.is_autogol}
-                              onChange={(e) => handleUpdateEvent(index, 'assist_man_id', e.target.value || null)}
-                              className={`w-full p-1 rounded border border-slate-300 text-xs font-semibold bg-white text-slate-600 ${ev.is_autogol ? 'opacity-40 cursor-not-allowed' : ''}`}
-                            >
-                              <option value="">-- Nessun Assist --</option>
-                              {availableTeamPlayers
-                                .filter((g) => g.id !== ev.giocatore_id)
-                                .map((g) => (
-                                  <option key={g.id} value={g.id}>
-                                    {g.nickname}
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newAutogolState = !ev.is_autogol;
-                              const updated = [...matchEvents];
-                              
-                              const newTargetSquadra = newAutogolState ? (ev.squadra === 'bianchi' ? 'neri' : 'bianchi') : ev.squadra;
-                              const firstAvailablePlayer = matchPlayers.find((mp) => mp.squadra === newTargetSquadra)?.giocatore_id || '';
-
-                              updated[index] = {
-                                ...updated[index],
-                                is_autogol: newAutogolState,
-                                giocatore_id: firstAvailablePlayer,
-                                assist_man_id: newAutogolState ? null : updated[index].assist_man_id
-                              };
-                              setMatchEvents(updated);
-                            }}
-                            title={ev.is_autogol ? "Autogol attivo (clicca per disattivare)" : "Imposta come Autogol"}
-                            className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors shrink-0 ${
-                              ev.is_autogol 
-                                ? 'bg-amber-100 text-amber-800 border-amber-300 shadow-2xs' 
-                                : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-                            }`}
-                          >
-                            {ev.is_autogol ? 'AUT' : 'Gol'}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveEvent(index)}
-                            className="p-1 text-red-500 hover:text-red-700 rounded"
-                            title="Elimina evento"
-                          >
-                            <Trash2 size={14} />
-                          </button>
                         </div>
                       );
                     })

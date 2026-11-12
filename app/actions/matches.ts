@@ -511,7 +511,8 @@ export async function saveMatchPlayers(partitaId: string, matchPlayers: any[]) {
 
 export async function getMatchEventsAdmin(partitaId: string) {
   const events = await sql`
-    SELECT pe.*, 
+    SELECT pe.id, pe.partita_id, pe.orario, pe.squadra, pe.giocatore_id, pe.assist_man_id, pe.is_autogol,
+           TO_CHAR(pe.timestamp_reale, 'YYYY-MM-DD HH24:MI:SS') as timestamp_reale,
            g.nickname as marcatore_nickname, 
            am.nickname as assist_nickname
     FROM partita_eventi pe
@@ -520,17 +521,30 @@ export async function getMatchEventsAdmin(partitaId: string) {
     WHERE pe.partita_id = ${partitaId}
     ORDER BY pe.orario ASC
   `;
-  return events;
+
+  return events.map((ev: any) => ({
+    ...ev,
+    timestamp_reale: ev.timestamp_reale || '0001-01-01 00:00:00'
+  }));
 }
 
 export async function saveMatchEvents(partitaId: string, events: any[]) {
   await sql`DELETE FROM partita_eventi WHERE partita_id = ${partitaId}`;
 
   for (const ev of events) {
-    await sql`
-      INSERT INTO partita_eventi (partita_id, orario, squadra, giocatore_id, assist_man_id, is_autogol)
-      VALUES (${partitaId}, ${ev.orario}, ${ev.squadra}, ${ev.giocatore_id}, ${ev.is_autogol ? null : (ev.assist_man_id || null)}, ${Boolean(ev.is_autogol)})
-    `;
+    const timestampReale = ev.timestamp_reale || ev.timestamp || null;
+
+    if (timestampReale) {
+      await sql`
+        INSERT INTO partita_eventi (partita_id, orario, squadra, giocatore_id, assist_man_id, is_autogol, timestamp_reale)
+        VALUES (${partitaId}, ${ev.orario}, ${ev.squadra}, ${ev.giocatore_id}, ${ev.is_autogol ? null : (ev.assist_man_id || null)}, ${Boolean(ev.is_autogol)}, ${timestampReale})
+      `;
+    } else {
+      await sql`
+        INSERT INTO partita_eventi (partita_id, orario, squadra, giocatore_id, assist_man_id, is_autogol)
+        VALUES (${partitaId}, ${ev.orario}, ${ev.squadra}, ${ev.giocatore_id}, ${ev.is_autogol ? null : (ev.assist_man_id || null)}, ${Boolean(ev.is_autogol)})
+      `;
+    }
   }
   return true;
 }

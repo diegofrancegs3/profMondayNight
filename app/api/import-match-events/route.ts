@@ -93,7 +93,8 @@ export async function POST(request: Request) {
         squadra: ev.squadra, // 'bianchi' o 'neri'
         giocatore_id: giocatore_id || null,
         assist_man_id: ev.is_autogol ? null : (assist_man_id || null),
-        is_autogol: Boolean(ev.is_autogol)
+        is_autogol: Boolean(ev.is_autogol),
+        timestamp_reale: ev.timestamp_reale || null
       });
     }
 
@@ -103,11 +104,11 @@ export async function POST(request: Request) {
     // Elimina eventuali eventi precedenti per questa partita
     await sql`DELETE FROM partita_eventi WHERE partita_id = ${partita_id}`;
 
-    // Inserisce i nuovi eventi
+    // Inserisce i nuovi eventi salvando direttamente il timestamp reale ricevuto
     for (const ev of processedEvents) {
       await sql`
-        INSERT INTO partita_eventi (partita_id, orario, squadra, giocatore_id, assist_man_id, is_autogol)
-        VALUES (${partita_id}, ${ev.orario}, ${ev.squadra}, ${ev.giocatore_id}, ${ev.assist_man_id}, ${ev.is_autogol})
+        INSERT INTO partita_eventi (partita_id, orario, squadra, giocatore_id, assist_man_id, is_autogol, timestamp_reale)
+        VALUES (${partita_id}, ${ev.orario}, ${ev.squadra}, ${ev.giocatore_id}, ${ev.assist_man_id}, ${ev.is_autogol}, ${ev.timestamp_reale})
       `;
     }
 
